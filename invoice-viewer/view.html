@@ -369,7 +369,9 @@
         const invoiceDateTs = invoice.createdAt ? (invoice.createdAt.seconds || invoice.createdAt._seconds || invoice.createdAt) :
                                   (invoice.dueDate ? (invoice.dueDate.seconds || invoice.dueDate._seconds || invoice.dueDate) : null);
         let invoiceDate;
-        if (invoiceDateTs) {
+        if (invoice.createdAt && typeof invoice.createdAt.toDate === 'function') {
+          invoiceDate = invoice.createdAt.toDate();
+        } else if (invoiceDateTs) {
           // if numeric seconds
           if (typeof invoiceDateTs === 'number') {
             // distinguish between seconds & millis (greater than year 3000 means millis)
