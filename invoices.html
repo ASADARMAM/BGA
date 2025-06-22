@@ -262,18 +262,10 @@
     </div>
   </div>
 
-  <!-- Load module scripts with cache busting -->
-  <script src="js/firebaseConfig.js?v=20240625001"></script>
-  <script src="js/users.js?v=20240625001"></script>
-  <script src="js/packages.js?v=20240625001"></script>
-  <script src="js/invoices.js?v=20240625001"></script>
-  <script src="js/whatsapp.js?v=20240625001"></script>
-  <script src="js/invoiceGenerator.js?v=20240625001"></script>
-  
-  <!-- Main script -->
+  <!-- Scripts -->
   <script type="module">
-    // Import from window global objects
-    const {
+    // Import Firebase modules
+    import {
         db,
         collection,
         addDoc,
@@ -288,37 +280,32 @@
         startAfter,
         getDoc,
         setDoc
-    } = window;
-    
-    const {
+    } from './js/firebaseConfig.js';
+    import {
         getUsers
-    } = window;
-    
-    const {
+    } from './js/users.js';
+    import {
         getPackages,
         getPackageById
-    } = window;
-    
-    const {
+    } from './js/packages.js';
+    import {
         listenToInvoices,
         addInvoice,
         updateInvoice,
         deleteInvoice,
-        generateInvoicesForAllUsers: generateAll,
-        sendPaymentReminders: sendAllReminders
-    } = window;
-    
-    const {
+        generateInvoicesForAllUsers as generateAll,
+        sendPaymentReminders as sendAllReminders
+    } from './js/invoices.js';
+    import {
         sendInvoiceNotification,
         sendInvoicePdf,
         formatMessage
-    } = window;
-    
-    const {
+    } from './js/whatsapp.js';
+    import {
         generateInvoiceImage,
         generateFormattedInvoiceId,
         formatAmount
-    } = window;
+    } from './js/invoiceGenerator.js';
 
     // DOM Elements
     const invoiceForm = document.getElementById('createInvoiceForm');
@@ -515,6 +502,7 @@
     }
 
     function editInvoice(invoice) {
+        const displayId = invoice.formattedId || invoice.id;
         document.querySelector('.form-title').textContent = 'Edit Invoice';
         editingInvoiceId = invoice.id;
         userSelect.value = invoice.userId;
