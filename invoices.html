@@ -294,7 +294,7 @@
         updateInvoice,
         deleteInvoice,
         generateInvoicesForAllUsers as generateAll,
-        sendPaymentReminders as sendAllReminders
+        sendPaymentReminders
     } from './js/invoices.js';
     import {
         sendInvoiceNotification,
@@ -641,7 +641,7 @@
         if (!confirm('This will send payment reminders for ALL overdue invoices. Are you sure?')) return;
         showAlert('Processing...', 'Sending reminders. This may take a moment.');
         try {
-            await sendAllReminders();
+            await sendPaymentReminders();
             showAlert('Success', 'Reminder process completed.');
         } catch(e) {
             showAlert('Error', 'An error occurred while sending reminders.');
