@@ -19,8 +19,8 @@ import {
 // Constants for invoice generation
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 1100;
-// Use absolute path for logo
-const COMPANY_LOGO = window.location.origin + '/assets/logo.svg';
+// Use relative path for logo
+const COMPANY_LOGO = 'assets/logo.svg';
 // Fallback text if logo doesn't load
 const COMPANY_NAME = 'WeCloud Internet Services';
 
