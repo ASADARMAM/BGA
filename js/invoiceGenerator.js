@@ -50,10 +50,8 @@ async function loadImage(src) {
 
 // Format currency
 function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-PK', {
-    style: 'currency',
-    currency: 'PKR'
-  }).format(amount);
+  // Format as Rs1000.00 as shown in the example
+  return `Rs${amount}.00`;
 }
 
 // Format date
@@ -81,11 +79,12 @@ function formatDate(date) {
       throw new Error("Invalid date");
     }
     
-    return new Intl.DateTimeFormat('en-PK', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }).format(dateObj);
+    // Format as DD/MM/YYYY as shown in the example
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const year = dateObj.getFullYear();
+    
+    return `${day}/${month}/${year}`;
   } catch (error) {
     console.error("Error formatting date:", error);
     return 'N/A';

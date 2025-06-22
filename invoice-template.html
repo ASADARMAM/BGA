@@ -80,6 +80,7 @@
       font-weight: bold;
       text-transform: uppercase;
       opacity: 0.8;
+      z-index: 10;
     }
     @media print {
       body {
@@ -95,7 +96,7 @@
 <body>
   <div class="invoice-container">
     <div class="logo">
-      <img src="/assets/logo.png" alt="WeCloud Logo">
+      <img src="/assets/logo.svg" alt="WeCloud Logo">
       <h1>WeCloud Internet Services</h1>
     </div>
 
@@ -125,26 +126,28 @@
       <tr>
         <td>{{packageName}}</td>
         <td>{{packageSpeed}}</td>
-        <td>₨{{packagePrice}}</td>
+        <td>Rs{{packagePrice}}.00</td>
       </tr>
     </table>
 
     <table class="amount-table">
       <tr>
         <th>Description</th>
-        <th>Amount (₨)</th>
+        <th>Amount (Rs)</th>
       </tr>
       <tr>
         <td>Internet Service ({{packageName}})</td>
-        <td>₨{{amount}}</td>
+        <td>Rs{{amount}}.00</td>
       </tr>
       <tr>
         <td style="font-weight: bold;">Total</td>
-        <td style="font-weight: bold;">₨{{amount}}</td>
+        <td style="font-weight: bold;">Rs{{amount}}.00</td>
       </tr>
     </table>
 
-    {{paidStamp}}
+    {{#if isPaid}}
+    <div class="paid-stamp">PAID</div>
+    {{/if}}
 
     <div class="footer">
       Thank you for your business!<br>
