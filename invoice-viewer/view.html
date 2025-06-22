@@ -381,7 +381,12 @@
           return;
         }
         
-        const invoice = { id: invoiceDoc.id, ...invoiceDoc.data() };
+        let invoice = { id: invoiceDoc.id, ...invoiceDoc.data() };
+        
+        // Ensure invoice has a date
+        if (!invoice.date) {
+          invoice.date = new Date();
+        }
         
         // Get user data
         const userDoc = await db.collection('users').doc(invoice.userId).get();
@@ -398,6 +403,16 @@
           return;
         }
         const packageData = { id: packageDoc.id, ...packageDoc.data() };
+        
+        // Generate formatted invoice ID if not present
+        if (!invoice.formattedId) {
+          const currentDate = new Date();
+          const year = currentDate.getFullYear();
+          const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+          const code = "MEGR"; // Fixed code as per example
+          const sequence = String(Math.floor(1000 + Math.random() * 9000)).substring(1);
+          invoice.formattedId = `${year}${month}${code}${sequence}`;
+        }
         
         // Update UI with invoice data
         updateInvoiceUI(invoice, user, packageData);
