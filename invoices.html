@@ -416,10 +416,13 @@
             if (invoice.status === 'Paid') statusClass = 'badge-success';
             else if (invoice.status === 'Overdue') statusClass = 'badge-danger';
 
-            const formattedAmount = `₨${parseFloat(invoice.amount || 0).toFixed(2)}`;
+            const formattedAmount = `₨${formatAmount(invoice.amount || 0)}`;
+            
+            // Always prefer the formattedId if available
+            const displayId = invoice.formattedId || invoice.id;
 
             row.innerHTML = `
-                <td>${invoice.formattedId || invoice.id}</td>
+                <td>${displayId}</td>
                 <td>${user ? user.name : 'Unknown User'}</td>
                 <td>${pkg ? pkg.name : 'Unknown Package'}</td>
                 <td>${formattedAmount}</td>
@@ -507,8 +510,9 @@
     }
 
     function confirmDeleteInvoice(invoice) {
+        const displayId = invoice.formattedId || invoice.id;
         confirmTitle.textContent = 'Delete Invoice';
-        confirmMessage.textContent = `Are you sure you want to delete invoice #${invoice.formattedId || invoice.id}? This action cannot be undone.`;
+        confirmMessage.textContent = `Are you sure you want to delete invoice #${displayId}? This action cannot be undone.`;
         confirmModal.classList.add('show');
         confirmOk.onclick = async () => {
             try {
@@ -530,8 +534,9 @@
             
             await updateInvoice(invoice.id, { status: 'Paid', paidAt: new Date() });
 
+            const displayId = invoice.formattedId || invoice.id;
             // The listener will auto-refresh the UI, but we can show an immediate alert.
-            showAlert('Success', `Invoice #${invoice.formattedId || invoice.id} marked as paid.`);
+            showAlert('Success', `Invoice #${displayId} marked as paid.`);
 
             if (document.getElementById('sendNotificationCheck').checked) {
                 console.log('Generating paid invoice image...');

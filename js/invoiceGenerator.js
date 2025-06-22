@@ -10,7 +10,10 @@ import {
     orderBy,
     limit,
     getDoc,
-    doc
+    doc,
+    setDoc,
+    runTransaction,
+    increment
 } from './firebaseConfig.js';
 
 // Constants for invoice generation
@@ -267,28 +270,45 @@ export async function generateInvoiceImage(invoiceData) {
  */
 export async function generateFormattedInvoiceId(year, month) {
     try {
-        // The document ID for our counter will be unique for each month, like "2025_5".
+        // Default to current month/year if not provided
+        if (year === undefined || month === undefined) {
+            const now = new Date();
+            year = now.getFullYear();
+            month = now.getMonth();
+        }
+
+        // The document ID for our counter will be unique for each month, like "2025_5"
         const statsDocRef = doc(db, "invoice_stats", `${year}_${month}`);
-        const statsDoc = await getDoc(statsDocRef);
-
-        // If a counter for this month already exists, get the current count. Otherwise, start at 0.
-        const currentCount = statsDoc.exists() ? statsDoc.data().totalInvoices || 0 : 0;
-        const sequenceNumber = currentCount + 1;
-
-        // Format the parts of the ID
-        const yearStr = year.toString();
-        const monthStr = (month + 1).toString().padStart(2, '0'); // User-facing month is 1-indexed
-        const sequenceStr = sequenceNumber.toString().padStart(4, '0');
-        const uniquePart = 'ZTFY'; // A constant identifier for your business
-
-        const formattedId = `${yearStr}${monthStr}${uniquePart}${sequenceStr}`;
-        console.log(`Generated new sequential Invoice ID: ${formattedId}`);
-        return formattedId;
-
+        
+        // Use a transaction to ensure atomicity when reading and updating the counter
+        const result = await runTransaction(db, async (transaction) => {
+            const statsDoc = await transaction.get(statsDocRef);
+            
+            // If a counter for this month already exists, get the current count. Otherwise, start at 0.
+            const currentCount = statsDoc.exists() ? statsDoc.data().totalInvoices || 0 : 0;
+            const sequenceNumber = currentCount + 1;
+            
+            // Update the counter in the transaction
+            transaction.set(statsDocRef, { 
+                totalInvoices: sequenceNumber,
+                lastUpdated: new Date()
+            }, { merge: true });
+            
+            // Format the parts of the ID
+            const yearStr = year.toString();
+            const monthStr = (month + 1).toString().padStart(2, '0'); // User-facing month is 1-indexed
+            const sequenceStr = sequenceNumber.toString().padStart(4, '0');
+            const uniquePart = 'ZTFY'; // A constant identifier for your business
+            
+            return `${yearStr}${monthStr}${uniquePart}${sequenceStr}`;
+        });
+        
+        console.log(`Generated new sequential Invoice ID: ${result}`);
+        return result;
     } catch (error) {
         console.error("CRITICAL: Could not generate a new invoice ID.", error);
-        // Fallback to prevent total failure, though this indicates a serious issue.
-        return `ID_GEN_ERROR_${Date.now()}`;
+        // Fallback to prevent total failure, though this indicates a serious issue
+        return `ID_ERR_${Date.now().toString().slice(-8)}`;
     }
 }
 

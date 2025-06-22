@@ -12,7 +12,9 @@ import {
     orderBy,
     runTransaction,
     serverTimestamp,
-    increment
+    increment,
+    getDocs,
+    getDoc
 } from './firebaseConfig.js';
 import {
     sendInvoiceNotification
@@ -50,41 +52,34 @@ export async function addInvoice(invoiceData, sendNotification = true) {
 
         // 2. Generate the unique, sequential, user-friendly ID
         const formattedId = await generateFormattedInvoiceId(invoiceData.year, invoiceData.month);
+        
+        // 3. Add the formatted ID to the invoice data
         invoiceData.formattedId = formattedId;
+        invoiceData.id = formattedId; // For backwards compatibility
 
-        // 3. Define references for the new invoice and its monthly counter
-        const invoiceDocRef = doc(invoicesCollection, formattedId);
-        const statsDocRef = doc(invoiceStatsCollection, `${invoiceData.year}_${invoiceData.month}`);
+        // 4. Create the invoice document with the formatted ID as the document ID
+        const invoiceDocRef = doc(db, "invoices", formattedId);
+        await setDoc(invoiceDocRef, invoiceData);
 
-        // 4. Use a transaction to guarantee the invoice is created AND the counter is updated together
-        await runTransaction(db, async (transaction) => {
-            // First, set the new invoice document
-            transaction.set(invoiceDocRef, invoiceData);
-
-            // Then, check if a counter for this month exists.
-            const statsDoc = await transaction.get(statsDocRef);
-            if (!statsDoc.exists()) {
-                // If not, create it with a count of 1.
-                transaction.set(statsDocRef, { totalInvoices: 1 });
-            } else {
-                // If it exists, just increment the count.
-                transaction.update(statsDocRef, { totalInvoices: increment(1) });
-            }
-        });
-
-        console.log("Invoice added successfully with custom ID:", formattedId);
+        console.log("Invoice added successfully with ID:", formattedId);
 
         // 5. Send Notification (if enabled)
         if (sendNotification) {
-            const user = await getUserById(invoiceData.userId);
-            const packageInfo = await getPackageById(invoiceData.packageId);
-            const notificationData = {
-                id: formattedId,
-                amount: invoiceData.amount,
-                dueDate: invoiceData.dueDate,
-                packageName: packageInfo ? packageInfo.name : 'N/A'
-            };
-            await sendInvoiceNotification(user, notificationData);
+            try {
+                const user = await getUserById(invoiceData.userId);
+                const packageInfo = await getPackageById(invoiceData.packageId);
+                const notificationData = {
+                    id: formattedId,
+                    amount: invoiceData.amount,
+                    dueDate: invoiceData.dueDate,
+                    packageName: packageInfo ? packageInfo.name : 'N/A'
+                };
+                await sendInvoiceNotification(user, notificationData);
+                console.log("Invoice notification sent successfully");
+            } catch (notificationError) {
+                console.error("Failed to send invoice notification:", notificationError);
+                // Continue execution even if notification fails
+            }
         }
 
         return formattedId;
@@ -355,8 +350,12 @@ async function processBatch(users, options = {}) {
 // Generate invoice data
 async function generateInvoiceData(user, packageData, options) {
   try {
-    // Generate formatted invoice ID
-    const formattedId = await generateFormattedInvoiceId();
+    // Get current month and year from options or use current date
+    const currentMonth = options.month !== undefined ? options.month : new Date().getMonth();
+    const currentYear = options.year !== undefined ? options.year : new Date().getFullYear();
+    
+    // Generate formatted invoice ID with the specific month and year
+    const formattedId = await generateFormattedInvoiceId(currentYear, currentMonth);
     
     // Ensure the ID is valid
     if (!formattedId) {
@@ -367,15 +366,15 @@ async function generateInvoiceData(user, packageData, options) {
     
     return {
       formattedId,
-      id: formattedId, // Add id as a fallback
+      id: formattedId, // Set both id and formattedId for consistency
       userId: user.id,
       packageId: user.packageId,
       amount: packageData.price,
       dueDate: options.dueDate,
       status: 'Due',
       createdAt: new Date(),
-      month: options.currentMonth,
-      year: options.currentYear
+      month: currentMonth,
+      year: currentYear
     };
   } catch (error) {
     console.error("Error generating invoice data:", error);
