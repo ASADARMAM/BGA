@@ -751,8 +751,6 @@
           confirmOk.disabled = true;
           confirmOk.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
           
-          // Import deleteInvoice function from the invoices.js module
-          const { deleteInvoice } = await import('./js/invoices.js');
           await deleteInvoice(invoice.id);
           
           // Close modal and reset button state
