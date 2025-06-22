@@ -1,7 +1,17 @@
 // Import required modules
 import { getPackageById } from './packages.js';
 import { getUserById } from './users.js';
-import { db, collection, query, where, getDocs, orderBy, limit } from './firebaseConfig.js';
+import {
+    db,
+    collection,
+    query,
+    where,
+    getDocs,
+    orderBy,
+    limit,
+    getDoc,
+    doc
+} from './firebaseConfig.js';
 
 // Constants for invoice generation
 const CANVAS_WIDTH = 800;
@@ -247,49 +257,39 @@ export async function generateInvoiceImage(invoiceData) {
   }
 }
 
-// Generate formatted invoice ID
-export async function generateFormattedInvoiceId() {
-  try {
-    const date = new Date();
-    const year = date.getFullYear().toString();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    
-    // Generate new random chars for every invoice
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    let random = '';
-    for (let i = 0; i < 4; i++) {
-      random += characters.charAt(Math.floor(Math.random() * characters.length));
+/**
+ * Generates a unique, sequential, and user-friendly invoice ID.
+ * It uses a separate 'invoice_stats' collection to reliably track the count for each month.
+ * Example: 202506ZTFY0001
+ * @param {number} year - The invoice year (e.g., 2025).
+ * @param {number} month - The invoice month (0-indexed, e.g., 5 for June).
+ * @returns {Promise<string>} A promise that resolves with the new formatted ID.
+ */
+export async function generateFormattedInvoiceId(year, month) {
+    try {
+        // The document ID for our counter will be unique for each month, like "2025_5".
+        const statsDocRef = doc(db, "invoice_stats", `${year}_${month}`);
+        const statsDoc = await getDoc(statsDocRef);
+
+        // If a counter for this month already exists, get the current count. Otherwise, start at 0.
+        const currentCount = statsDoc.exists() ? statsDoc.data().totalInvoices || 0 : 0;
+        const sequenceNumber = currentCount + 1;
+
+        // Format the parts of the ID
+        const yearStr = year.toString();
+        const monthStr = (month + 1).toString().padStart(2, '0'); // User-facing month is 1-indexed
+        const sequenceStr = sequenceNumber.toString().padStart(4, '0');
+        const uniquePart = 'ZTFY'; // A constant identifier for your business
+
+        const formattedId = `${yearStr}${monthStr}${uniquePart}${sequenceStr}`;
+        console.log(`Generated new sequential Invoice ID: ${formattedId}`);
+        return formattedId;
+
+    } catch (error) {
+        console.error("CRITICAL: Could not generate a new invoice ID.", error);
+        // Fallback to prevent total failure, though this indicates a serious issue.
+        return `ID_GEN_ERROR_${Date.now()}`;
     }
-    
-    // Get current month's invoices to determine next sequence number
-    const currentMonthQuery = query(
-      collection(db, "invoices"),
-      where("year", "==", parseInt(year)),
-      where("month", "==", parseInt(month) - 1),
-      orderBy("formattedId", "desc"),
-      limit(1)
-    );
-    
-    const querySnapshot = await getDocs(currentMonthQuery);
-    let sequence = 1;
-    
-    // If we have existing invoices this month, get next sequence number
-    if (!querySnapshot.empty) {
-      const latestInvoice = querySnapshot.docs[0].data();
-      if (latestInvoice.formattedId) {
-        sequence = parseInt(latestInvoice.formattedId.substring(10)) + 1;
-      }
-    }
-    
-    // Generate the formatted ID
-    const paddedSequence = String(sequence).padStart(4, '0');
-    const formattedId = `${year}${month}${random}${paddedSequence}`;
-    
-    return formattedId;
-  } catch (error) {
-    console.error("Error generating formatted invoice ID:", error);
-    throw error;
-  }
 }
 
 // Generate invoice PDF using the canvas image

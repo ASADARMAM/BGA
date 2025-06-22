@@ -1,396 +1,175 @@
-// Invoices management module
-import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, where, getDoc, orderBy, limit, startAfter, writeBatch, runTransaction, serverTimestamp, increment } from './firebaseConfig.js';
-import { sendInvoiceNotification, sendPaymentReminder, sendInvoicePdf } from './whatsapp.js';
-import { getUserById } from './users.js';
-import { getPackageById } from './packages.js';
-import { generateInvoiceImage, generateFormattedInvoiceId, generateInvoicePdf } from './invoiceGenerator.js';
+// Invoices management module - Simplified and Corrected
+import {
+    db,
+    collection,
+    doc,
+    setDoc,
+    updateDoc,
+    deleteDoc,
+    onSnapshot,
+    query,
+    where,
+    orderBy,
+    runTransaction,
+    serverTimestamp,
+    increment
+} from './firebaseConfig.js';
+import {
+    sendInvoiceNotification
+} from './whatsapp.js';
+import {
+    getUserById
+} from './users.js';
+import {
+    getPackageById
+} from './packages.js';
+import {
+    generateFormattedInvoiceId
+} from './invoiceGenerator.js';
 
-// Collection references with sharding
+// --- Firestore Collection References ---
 const invoicesCollection = collection(db, "invoices");
 const invoiceStatsCollection = collection(db, "invoice_stats");
 
-// Shard collections for better performance with large datasets
-function getInvoiceShardCollection(year, month) {
-  return collection(db, `invoices_${year}_${month}`);
-}
-
-// Constants for optimization
-const INVOICE_BATCH_SIZE = 20; // Increased from 5 to 20
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-const PROCESSING_TIMEOUT = 60000; // 60 seconds timeout for each batch
-const MAX_CONCURRENT_OPERATIONS = 10; // Increased from 5 to 10
-const MAX_BATCH_SIZE = 500; // Maximum documents in a Firestore batch
-
-// Enhanced cache structure
-const cache = {
-  invoices: {
-    data: new Map(), // Map of page number to invoice data
-    timestamp: null,
-    lastVisible: null,
-    totalInvoices: 0,
-    prefetchedPages: new Set()
-  },
-  monthlyStats: {
-    data: new Map(), // Map of month-year to statistics
-    timestamp: null
-  }
-};
-
 /**
- * Add a new invoice with sharding support
- * @param {object} invoiceData - Invoice data object
- * @param {boolean} sendNotification - Whether to send WhatsApp notification
- * @returns {Promise} - Promise with invoice document reference
+ * Adds a new invoice to the database, using the formatted ID as the document ID.
+ * It also atomically updates the invoice counter for the month.
+ * @param {object} invoiceData - The core data for the new invoice.
+ * @param {boolean} sendNotification - Flag to control sending WhatsApp notifications.
+ * @returns {Promise<string>} A promise that resolves with the new invoice's ID.
  */
 export async function addInvoice(invoiceData, sendNotification = true) {
-  try {
-    // Add timestamps
-    invoiceData.createdAt = serverTimestamp(); // Use server timestamp for consistency
-    invoiceData.status = invoiceData.status || 'Due'; // Default status
-    
-    // Add month and year if not provided
-    const now = new Date();
-    if (invoiceData.month === undefined) {
-      invoiceData.month = now.getMonth();
-    }
-    if (invoiceData.year === undefined) {
-      invoiceData.year = now.getFullYear();
-    }
-    
-    // Get the appropriate shard collection
-    const shardCollection = getInvoiceShardCollection(invoiceData.year, invoiceData.month);
-    
-    // Check for existing invoice for this user in this month/year
-    const q = query(
-      shardCollection,
-      where("userId", "==", invoiceData.userId)
-    );
-    
-    const existingInvoices = await getDocs(q);
-    if (!existingInvoices.empty) {
-      console.warn(`Invoice already exists for user ${invoiceData.userId} for ${invoiceData.month}/${invoiceData.year}`);
-      // Return the existing invoice
-      const existingDoc = existingInvoices.docs[0];
-      return {
-        id: existingDoc.id,
-        ...existingDoc.data()
-      };
-    }
-    
-    // Add the document to Firestore
-    const docRef = await addDoc(shardCollection, invoiceData);
-    console.log("Invoice added with ID: ", docRef.id);
-    
-    // Update invoice stats atomically
     try {
-      const statsRef = doc(invoiceStatsCollection, `${invoiceData.year}_${invoiceData.month}`);
-      await runTransaction(db, async (transaction) => {
-        const statsDoc = await transaction.get(statsRef);
-        
-        if (!statsDoc.exists()) {
-          transaction.set(statsRef, {
-            totalInvoices: 1,
-            totalAmount: invoiceData.amount || 0,
-            paidInvoices: 0,
-            paidAmount: 0,
-            year: invoiceData.year,
-            month: invoiceData.month,
-            lastUpdated: serverTimestamp()
-          });
-        } else {
-          transaction.update(statsRef, {
-            totalInvoices: increment(1),
-            totalAmount: increment(invoiceData.amount || 0),
-            lastUpdated: serverTimestamp()
-          });
+        // 1. Prepare Invoice Data
+        invoiceData.createdAt = serverTimestamp();
+        invoiceData.status = invoiceData.status || 'Due';
+
+        const dueDate = new Date(invoiceData.dueDate);
+        invoiceData.month = dueDate.getMonth(); // 0-indexed month
+        invoiceData.year = dueDate.getFullYear();
+
+        // 2. Generate the unique, sequential, user-friendly ID
+        const formattedId = await generateFormattedInvoiceId(invoiceData.year, invoiceData.month);
+        invoiceData.formattedId = formattedId;
+
+        // 3. Define references for the new invoice and its monthly counter
+        const invoiceDocRef = doc(invoicesCollection, formattedId);
+        const statsDocRef = doc(invoiceStatsCollection, `${invoiceData.year}_${invoiceData.month}`);
+
+        // 4. Use a transaction to guarantee the invoice is created AND the counter is updated together
+        await runTransaction(db, async (transaction) => {
+            // First, set the new invoice document
+            transaction.set(invoiceDocRef, invoiceData);
+
+            // Then, check if a counter for this month exists.
+            const statsDoc = await transaction.get(statsDocRef);
+            if (!statsDoc.exists()) {
+                // If not, create it with a count of 1.
+                transaction.set(statsDocRef, { totalInvoices: 1 });
+            } else {
+                // If it exists, just increment the count.
+                transaction.update(statsDocRef, { totalInvoices: increment(1) });
+            }
+        });
+
+        console.log("Invoice added successfully with custom ID:", formattedId);
+
+        // 5. Send Notification (if enabled)
+        if (sendNotification) {
+            const user = await getUserById(invoiceData.userId);
+            const packageInfo = await getPackageById(invoiceData.packageId);
+            const notificationData = {
+                id: formattedId,
+                amount: invoiceData.amount,
+                dueDate: invoiceData.dueDate,
+                packageName: packageInfo ? packageInfo.name : 'N/A'
+            };
+            await sendInvoiceNotification(user, notificationData);
         }
-      });
-    } catch (statsError) {
-      console.error("Error updating invoice stats:", statsError);
-      // Continue execution - stats update failure shouldn't block invoice creation
+
+        return formattedId;
+
+    } catch (error) {
+        console.error("Error adding invoice:", error);
+        throw error;
     }
-    
-    // Send WhatsApp notification if requested
-    if (sendNotification) {
-      try {
-        // Get user details
-        const user = await getUserById(invoiceData.userId);
-        
-        // Get package details
-        const packageInfo = await getPackageById(invoiceData.packageId);
-        
-        // Prepare invoice data for notification
-        const invoiceForNotification = {
-          id: docRef.id,
-          amount: invoiceData.amount,
-          dueDate: invoiceData.dueDate,
-          packageName: packageInfo.name,
-          month: invoiceData.month,
-          year: invoiceData.year
-        };
-        
-        // Send notification
-        await sendInvoiceNotification(user, invoiceForNotification);
-      } catch (error) {
-        console.error("Error sending invoice notification: ", error);
-        // Don't throw error here, as invoice was already created
-      }
-    }
-    
-    return docRef;
-  } catch (error) {
-    console.error("Error adding invoice: ", error);
-    throw error;
-  }
 }
 
 /**
- * Get all invoices across all shards
- * @returns {Promise} - Promise with array of invoices
- */
-// This function is being removed to prevent duplication. 
-// The paginated version `getInvoices(filters, lastVisible)` should be used instead.
-
-/**
- * Update an invoice
- * @param {string} invoiceId - Invoice document ID
- * @param {object} invoiceData - Updated invoice data
- * @returns {Promise} - Promise with update result
+ * Updates an existing invoice in the database.
+ * @param {string} invoiceId - The ID of the invoice to update.
+ * @param {object} invoiceData - An object containing the fields to update.
  */
 export async function updateInvoice(invoiceId, invoiceData) {
-  try {
-    // Add update timestamp
-    invoiceData.updatedAt = new Date();
-    
-    const invoiceRef = doc(db, "invoices", invoiceId);
-    await updateDoc(invoiceRef, invoiceData);
-    console.log("Invoice updated: ", invoiceId);
-    return true;
-  } catch (error) {
-    console.error("Error updating invoice: ", error);
-    throw error;
-  }
+    try {
+        const invoiceRef = doc(db, "invoices", invoiceId);
+        await updateDoc(invoiceRef, { ...invoiceData, updatedAt: serverTimestamp() });
+        console.log("Invoice updated:", invoiceId);
+    } catch (error) {
+        console.error("Error updating invoice:", error);
+        throw error;
+    }
 }
 
 /**
- * Delete an invoice
- * @param {string} invoiceId - Invoice document ID
- * @returns {Promise} - Promise with delete result
+ * Deletes an invoice from the database.
+ * @param {string} invoiceId - The ID of the invoice to delete.
  */
 export async function deleteInvoice(invoiceId) {
-  try {
-    const invoiceRef = doc(db, "invoices", invoiceId);
-    await deleteDoc(invoiceRef);
-    console.log("Invoice deleted: ", invoiceId);
-    return true;
-  } catch (error) {
-    console.error("Error deleting invoice: ", error);
-    throw error;
-  }
-}
-
-/**
- * Get a single invoice by ID
- * @param {string} invoiceId - Invoice document ID
- * @returns {Promise} - Promise with invoice data
- */
-export async function getInvoiceById(invoiceId) {
-  try {
-    const invoiceRef = doc(db, "invoices", invoiceId);
-    const invoiceSnap = await getDoc(invoiceRef);
-    
-    if (invoiceSnap.exists()) {
-      return {
-        id: invoiceSnap.id,
-        ...invoiceSnap.data()
-      };
-    } else {
-      console.log("No such invoice!");
-      return null;
+    try {
+        const invoiceRef = doc(db, "invoices", invoiceId);
+        await deleteDoc(invoiceRef);
+        console.log("Invoice deleted:", invoiceId);
+    } catch (error) {
+        console.error("Error deleting invoice:", error);
+        throw error;
     }
-  } catch (error) {
-    console.error("Error getting invoice: ", error);
-    throw error;
-  }
 }
 
 /**
- * Get invoices by user ID
- * @param {string} userId - User ID
- * @returns {Promise} - Promise with array of invoices
- */
-export async function getInvoicesByUser(userId) {
-  try {
-    const q = query(
-      invoicesCollection,
-      where("userId", "==", userId),
-      orderBy("dueDate", "desc")
-    );
-    
-    const querySnapshot = await getDocs(q);
-    const invoices = [];
-    
-    querySnapshot.forEach((doc) => {
-      invoices.push({
-        id: doc.id,
-        ...doc.data()
-      });
-    });
-    
-    return invoices;
-  } catch (error) {
-    console.error("Error getting user invoices: ", error);
-    throw error;
-  }
-}
-
-/**
- * Get overdue invoices
- * @returns {Promise} - Promise with array of overdue invoices
- */
-export async function getOverdueInvoices() {
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const q = query(
-      invoicesCollection,
-      where("dueDate", "<", today),
-      where("status", "==", "Due")
-    );
-    
-    const querySnapshot = await getDocs(q);
-    const invoices = [];
-    
-    querySnapshot.forEach((doc) => {
-      invoices.push({
-        id: doc.id,
-        ...doc.data()
-      });
-    });
-    
-    return invoices;
-  } catch (error) {
-    console.error("Error getting overdue invoices: ", error);
-    throw error;
-  }
-}
-
-/**
- * Send payment reminders for overdue invoices
- * @param {string} reminderType - Type of reminder: 'all', 'overdue', 'due', 'upcoming'
- * @returns {Promise} - Promise with results
- */
-export async function sendPaymentReminders(reminderType = 'overdue') {
-  try {
-    let invoices = [];
-    // Only get invoices with status 'Overdue'
-    const overdueQuery = query(
-      invoicesCollection,
-      where("status", "==", "Overdue")
-    );
-    const overdueSnapshot = await getDocs(overdueQuery);
-    overdueSnapshot.forEach((doc) => {
-      invoices.push({
-        id: doc.id,
-        ...doc.data()
-      });
-    });
-    
-    const results = [];
-    
-    for (const invoice of invoices) {
-      try {
-        // Get user details
-        const user = await getUserById(invoice.userId);
-        // Get package details
-        const packageInfo = await getPackageById(invoice.packageId);
-        // Get current month and year if not available in invoice
-        const currentDate = new Date();
-        const month = invoice.month !== undefined ? invoice.month : currentDate.getMonth();
-        const year = invoice.year !== undefined ? invoice.year : currentDate.getFullYear();
-        // Prepare invoice data for notification
-        const invoiceForReminder = {
-          id: invoice.id,
-          amount: invoice.amount,
-          dueDate: invoice.dueDate,
-          packageName: packageInfo.name,
-          month: month,
-          year: year
-        };
-        // Send reminder
-        await sendPaymentReminder(user, invoiceForReminder);
-        results.push({
-          invoiceId: invoice.id,
-          userId: invoice.userId,
-          userName: user.name,
-          success: true
-        });
-      } catch (error) {
-        console.error(`Error sending reminder for invoice ${invoice.id}:`, error);
-        results.push({
-          invoiceId: invoice.id,
-          userId: invoice.userId,
-          success: false,
-          error: error.message
-        });
-      }
-    }
-    
-    return {
-      total: invoices.length,
-      sent: results.filter(r => r.success).length,
-      failed: results.filter(r => !r.success).length,
-      details: results
-    };
-  } catch (error) {
-    console.error("Error sending payment reminders: ", error);
-    throw error;
-  }
-}
-
-/**
- * Creates a real-time listener for invoices.
- * @param {object} filters - Filtering options (status, month, year).
- * @param {function} callback - The function to call with the invoices data.
- * @returns {function} - The unsubscribe function for the listener.
+ * Creates a real-time listener for invoices based on specified filters.
+ * This is the function that makes the invoice list update automatically.
+ * @param {object} filters - Filtering options (e.g., status, month, year).
+ * @param {function} callback - The function to call with the updated list of invoices.
+ * @returns {function} The unsubscribe function to detach the listener.
  */
 export function listenToInvoices(filters, callback) {
-    let q = collection(db, 'invoices');
-    let queryConstraints = [];
+    try {
+        let q = query(invoicesCollection, orderBy('createdAt', 'desc'));
 
-    // Filtering
-    if (filters.status && filters.status !== 'all') {
-        queryConstraints.push(where('status', '==', filters.status));
+        const queryConstraints = [];
+        if (filters.status && filters.status !== 'all') {
+            queryConstraints.push(where('status', '==', filters.status));
+        }
+        if (filters.month && filters.month !== 'all') {
+            queryConstraints.push(where('month', '==', parseInt(filters.month, 10)));
+        }
+        if (filters.year && filters.year !== 'all') {
+            queryConstraints.push(where('year', '==', parseInt(filters.year, 10)));
+        }
+
+        // Apply all the active filters to the query
+        if (queryConstraints.length > 0) {
+            q = query(q, ...queryConstraints);
+        }
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const invoices = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            callback(invoices);
+        }, (error) => {
+            console.error("Error listening to invoices:", error);
+            callback([], error); // Send error to UI
+        });
+
+        return unsubscribe;
+
+    } catch (error) {
+        console.error("Failed to create invoice listener:", error);
+        return () => {}; // Return an empty function on failure
     }
-     if (filters.month && filters.month !== 'all') {
-        const year = filters.year || new Date().getFullYear();
-        const startDate = new Date(year, parseInt(filters.month), 1);
-        const endDate = new Date(year, parseInt(filters.month) + 1, 1);
-        queryConstraints.push(where('dueDate', '>=', startDate));
-        queryConstraints.push(where('dueDate', '<', endDate));
-    } else if (filters.year && filters.year !== 'all') {
-        const startDate = new Date(filters.year, 0, 1);
-        const endDate = new Date(parseInt(filters.year) + 1, 0, 1);
-        queryConstraints.push(where('dueDate', '>=', startDate));
-        queryConstraints.push(where('dueDate', '<', endDate));
-    }
-
-    // Ordering and limiting for performance
-    queryConstraints.push(orderBy('dueDate', 'desc'));
-    queryConstraints.push(limit(50)); // Listen to the 50 most recent invoices
-
-    q = query(q, ...queryConstraints);
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const invoices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        callback(invoices);
-    }, (error) => {
-        console.error("Error listening to invoices:", error);
-        // Optionally, you could have a callback for errors as well
-    });
-
-    return unsubscribe;
 }
 
 /**
