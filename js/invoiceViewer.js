@@ -1,15 +1,19 @@
 // Integration script for the GitHub Pages invoice viewer
 
 // Replace with your GitHub Pages URL
-const INVOICE_BASE_URL = "https://asadarmam.github.io/wecloud-invoices/view.html?id=";
+const GITHUB_PAGES_URL = 'https://asadarmam.github.io/wecloud-invoices/view.html';
 
 /**
- * Generate a direct link to an invoice
- * @param {string} invoiceId - The ID of the invoice
- * @returns {string} - The direct link to the invoice
+ * Generates a direct link to the invoice viewer on GitHub Pages.
+ * @param {string} formattedId - The formatted invoice ID (e.g., '202307WCID1234').
+ * @returns {string} - The direct URL to view the invoice.
  */
-export function generateInvoiceLink(invoiceId) {
-  return `${INVOICE_BASE_URL}${invoiceId}`;
+export function generateInvoiceLink(formattedId) {
+    if (!formattedId) {
+        console.error("formattedId is required to generate an invoice link.");
+        return '';
+    }
+    return `${GITHUB_PAGES_URL}?id=${formattedId}`;
 }
 
 /**

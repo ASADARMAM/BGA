@@ -158,8 +158,12 @@
   <!-- Scripts -->
   <script type="module">
     // Import Firebase modules
-    import { db, collection, getDocs, query, where } from './js/firebaseConfig.js';
-    import { addPackage, updatePackage, deletePackage, listenToPackages } from './js/packages.js';
+    import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot } from './js/firebaseConfig.js';
+    import { listenToPackages, addPackage, updatePackage, deletePackage } from './js/packages.js';
+    
+    // State management
+    let editingPackageId = null;
+    let unsubscribePackages = null;
     
     // DOM Elements
     const packageForm = document.getElementById('addPackageForm');
@@ -188,35 +192,25 @@
     const alertOk = document.getElementById('alertOk');
     const alertClose = document.getElementById('alertClose');
     
-    // Global variables
-    let currentPackageId = null;
-    let unsubscribePackages = null;
-    
-    // Initialize package listeners
-    function initializePackageListeners() {
-      // Unsubscribe from previous listener if exists
+    // Load packages with a real-time listener
+    function setupPackageListener() {
       if (unsubscribePackages) {
         unsubscribePackages();
       }
-      
-      // Set up real-time listener for packages
-      unsubscribePackages = listenToPackages(renderPackages);
+      packagesList.innerHTML = '<tr><td colspan="4" class="text-center">Loading real-time packages...</td></tr>';
+      unsubscribePackages = listenToPackages((packages) => {
+        renderPackages(packages);
+      });
     }
     
-    // Render packages in the table
+    // Render packages table
     function renderPackages(packages) {
+      packagesList.innerHTML = '';
       if (packages.length === 0) {
-        packagesList.innerHTML = '<tr><td colspan="5" class="text-center">No packages found</td></tr>';
+        packagesList.innerHTML = '<tr><td colspan="4" class="text-center">No packages found.</td></tr>';
         return;
       }
       
-      // Clear the table
-      packagesList.innerHTML = '';
-      
-      // Sort packages by price
-      packages.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-      
-      // Add each package to the table
       packages.forEach(pkg => {
         const row = document.createElement('tr');
         
@@ -260,9 +254,9 @@
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
         
-        if (currentPackageId) {
+        if (editingPackageId) {
           // Update existing package
-          await updatePackage(currentPackageId, packageData);
+          await updatePackage(editingPackageId, packageData);
           showAlert("Success", "Package updated successfully!");
         } else {
           // Add new package
@@ -272,11 +266,11 @@
         
         // Reset form
         packageForm.reset();
-        currentPackageId = null;
-        saveBtn.textContent = 'Save Package';
+        editingPackageId = null;
+        saveBtn.textContent = 'Create Package';
         cancelBtn.style.display = 'none';
       } catch (error) {
-        console.error("Error saving package:", error);
+        console.error('Error saving package:', error);
         showAlert("Error", "Failed to save package: " + error.message);
       } finally {
         saveBtn.disabled = false;
@@ -294,7 +288,7 @@
       descriptionInput.value = pkg.description || '';
       
       // Update form state
-      currentPackageId = pkg.id;
+      editingPackageId = pkg.id;
       saveBtn.innerHTML = '<i class="fas fa-save"></i> Update Package';
       cancelBtn.style.display = 'inline-block';
       
@@ -305,8 +299,8 @@
     // Cancel edit
     function cancelEdit() {
       packageForm.reset();
-      currentPackageId = null;
-      saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Package';
+      editingPackageId = null;
+      saveBtn.textContent = 'Create Package';
       cancelBtn.style.display = 'none';
     }
     
@@ -392,7 +386,16 @@
     }
     
     // Event listeners
-    document.addEventListener('DOMContentLoaded', initializePackageListeners);
+    document.addEventListener('DOMContentLoaded', () => {
+      setupPackageListener();
+    });
+
+    window.addEventListener('unload', () => {
+      if (unsubscribePackages) {
+        unsubscribePackages();
+      }
+    });
+
     packageForm.addEventListener('submit', handleFormSubmit);
     cancelBtn.addEventListener('click', cancelEdit);
     confirmCancel.addEventListener('click', closeConfirmModal);

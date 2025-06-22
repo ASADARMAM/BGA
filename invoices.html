@@ -204,9 +204,6 @@
             </tr>
           </tbody>
         </table>
-        <div class="table-footer">
-            <button id="loadMoreBtn" class="btn btn-secondary" style="display: none;">Load More</button>
-        </div>
       </div>
     </div>
     
@@ -255,7 +252,7 @@
     import { db, collection, addDoc, getDocs, doc, updateDoc, query, where, onSnapshot, orderBy, limit, startAfter, getDoc } from './js/firebaseConfig.js';
     import { getUsers } from './js/users.js';
     import { getPackages } from './js/packages.js';
-    import { getInvoices, addInvoice, updateInvoice, deleteInvoice } from './js/invoices.js';
+    import { listenToInvoices, addInvoice, updateInvoice, deleteInvoice } from './js/invoices.js';
     import { sendInvoiceNotification, sendInvoicePdf, sendPaymentReminder, sendBroadcastAlert, sendPaidInvoiceNotification } from './js/whatsapp.js';
     import { generateInvoiceImage, generateFormattedInvoiceId } from './js/invoiceGenerator.js';
     
@@ -277,7 +274,6 @@
     const broadcastAlertBtn = document.getElementById('broadcastAlertBtn');
     const menuToggle = document.getElementById('menuToggle');
     const navLinks = document.getElementById('navLinks');
-    const loadMoreBtn = document.getElementById('loadMoreBtn');
     
     // Modal elements
     const confirmModal = document.getElementById('confirmModal');
@@ -297,8 +293,6 @@
     let packagesData = [];
     let currentInvoiceId = null;
     let unsubscribeInvoices = null;
-    let lastVisibleInvoice = null;
-    let isLoading = false;
     
     // Set default due date to 30 days from now
     function setDefaultDueDate() {
@@ -362,130 +356,37 @@
       }
     }
     
-    // Update existing invoices that don't have formattedId
-    async function updateExistingInvoices() {
-      try {
-        const q = query(collection(db, "invoices"), where("formattedId", "==", null));
-        const querySnapshot = await getDocs(q);
-        
-        // Group invoices by month/year for proper sequencing
-        const monthGroups = new Map(); // key: 'YYYYMM', value: array of docs
-        
-        for (const doc of querySnapshot.docs) {
-          const invoice = doc.data();
-          const invoiceDate = invoice.createdAt?.toDate ? invoice.createdAt.toDate() : new Date(invoice.createdAt);
-          const year = invoiceDate.getFullYear();
-          const month = String(invoiceDate.getMonth() + 1).padStart(2, '0');
-          const key = `${year}${month}`;
-          
-          if (!monthGroups.has(key)) {
-            monthGroups.set(key, []);
-          }
-          monthGroups.get(key).push({ doc, invoice });
-        }
-        
-        // Process each month group
-        for (const [key, invoices] of monthGroups) {
-          const year = key.substring(0, 4);
-          const month = key.substring(4, 6);
-          
-          // Get existing random characters for this month
-          const existingQuery = query(
-            collection(db, "invoices"),
-            where("year", "==", parseInt(year)),
-            where("month", "==", parseInt(month) - 1),
-            where("formattedId", "!=", null),
-            orderBy("formattedId", "desc"),
-            limit(1)
-          );
-          
-          const existingSnapshot = await getDocs(existingQuery);
-          let random = '';
-          let sequence = 1;
-          
-          // If we have existing invoices this month, use their random characters
-          if (!existingSnapshot.empty) {
-            const latestInvoice = existingSnapshot.docs[0].data();
-            if (latestInvoice.formattedId) {
-              // Extract the random characters from existing invoice ID (chars 7-10)
-              random = latestInvoice.formattedId.substring(6, 10);
-              // Get the sequence number and increment
-              sequence = parseInt(latestInvoice.formattedId.substring(10)) + 1;
-            }
-          }
-          
-          // If no existing random characters, generate new ones
-          if (!random) {
-            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            for (let i = 0; i < 4; i++) {
-              random += characters.charAt(Math.floor(Math.random() * characters.length));
-            }
-          }
-          
-          // Sort invoices by creation date
-          invoices.sort((a, b) => {
-            const dateA = a.invoice.createdAt?.toDate ? a.invoice.createdAt.toDate() : new Date(a.invoice.createdAt);
-            const dateB = b.invoice.createdAt?.toDate ? b.invoice.createdAt.toDate() : new Date(b.invoice.createdAt);
-            return dateA - dateB;
-          });
-          
-          // Update each invoice with new format
-          for (const { doc } of invoices) {
-            const paddedSequence = String(sequence++).padStart(4, '0');
-            const formattedId = `${year}${month}${random}${paddedSequence}`;
-            await updateDoc(doc.ref, { formattedId });
-          }
-        }
-      } catch (error) {
-        console.error("Error updating existing invoices:", error);
-      }
-    }
-    
     // Initialize invoice listeners
-    async function initializeInvoiceListeners(isFilterChange = false) {
-      if (isLoading) return;
-      isLoading = true;
-
-      if (isFilterChange) {
-        invoicesList.innerHTML = '<tr><td colspan="7" class="text-center">Loading invoices...</td></tr>';
-        lastVisibleInvoice = null;
-      }
-
-      const statusFilter = document.getElementById('statusFilter').value;
-      const monthFilter = document.getElementById('monthFilter').value;
-      const yearFilter = document.getElementById('yearFilter').value;
-
-      try {
-        const { invoices, lastVisible } = await getInvoices(
-          { status: statusFilter, month: monthFilter, year: yearFilter },
-          lastVisibleInvoice
-        );
-
-        if (isFilterChange) {
-          invoicesList.innerHTML = '';
+    function setupInvoiceListener() {
+        // Unsubscribe from any existing listener
+        if (unsubscribeInvoices) {
+            unsubscribeInvoices();
         }
-        
-        if (invoices.length > 0) {
-          renderInvoices(invoices);
-          lastVisibleInvoice = lastVisible;
-          loadMoreBtn.style.display = 'block';
-        } else {
-          if (isFilterChange) {
-            invoicesList.innerHTML = '<tr><td colspan="7" class="text-center">No invoices found.</td></tr>';
-          }
-          loadMoreBtn.style.display = 'none';
-        }
-      } catch (error) {
-        console.error('Error fetching invoices:', error);
-        invoicesList.innerHTML = '<tr><td colspan="7" class="text-center">Error loading invoices.</td></tr>';
-      } finally {
-        isLoading = false;
-      }
+
+        invoicesList.innerHTML = '<tr><td colspan="7" class="text-center">Loading real-time invoices...</td></tr>';
+
+        const statusFilter = document.getElementById('statusFilter').value;
+        const monthFilter = document.getElementById('monthFilter').value;
+        const yearFilter = document.getElementById('yearFilter').value;
+
+        const filters = {
+            status: statusFilter,
+            month: monthFilter,
+            year: yearFilter
+        };
+
+        unsubscribeInvoices = listenToInvoices(filters, (invoices) => {
+            renderInvoices(invoices);
+        });
     }
     
     // Render invoices list
     function renderInvoices(invoices) {
-      // Clear existing invoices first
+      if (invoices.length === 0) {
+        invoicesList.innerHTML = '<tr><td colspan="7" class="text-center">No invoices found for the selected filters.</td></tr>';
+        return;
+      }
+      
       invoicesList.innerHTML = '';
       
       // Populate year filter dynamically
@@ -516,12 +417,7 @@
         return;
       }
       
-      // Sort invoices by due date (most recent first)
-      filtered.sort((a, b) => {
-        const dateA = a.dueDate ? new Date(a.dueDate.seconds * 1000) : new Date();
-        const dateB = b.dueDate ? new Date(b.dueDate.seconds * 1000) : new Date();
-        return dateB - dateA;
-      });
+      // Sort invoices by due date (most recent first) - onSnapshot query already handles this
       
       // Add each invoice to the table
       filtered.forEach(invoice => {
@@ -683,15 +579,13 @@
           showAlert("Success", "Invoice created successfully!" + (sendNotification ? " WhatsApp notification and invoice sent." : ""));
         }
         
-        // Reset form
+        // Reset form - no need to manually refresh list, listener will handle it
         invoiceForm.reset();
         currentInvoiceId = null;
         saveBtn.textContent = 'Create Invoice';
         cancelBtn.style.display = 'none';
         setDefaultDueDate();
         
-        // Refresh the invoices list
-        initializeInvoiceListeners(true);
       } catch (error) {
         console.error("Error saving invoice:", error);
         showAlert("Error", "Failed to save invoice: " + error.message);
@@ -1240,7 +1134,6 @@
             });
             showAlert('Success', `Late fee of ₨${lateFee} added. New total: ₨${newAmount}`);
             confirmModal.classList.remove('show');
-            initializeInvoiceListeners(true);
           }
         };
         
@@ -1256,7 +1149,6 @@
             });
             showAlert('Success', `Invoice marked as paid with late fee of ₨${lateFee}. Total paid: ₨${newAmount}`);
             confirmModal.classList.remove('show');
-            initializeInvoiceListeners(true);
           }
         };
         
@@ -1267,7 +1159,6 @@
             });
             showAlert('Warning', 'Invoice marked as defaulted');
             confirmModal.classList.remove('show');
-            initializeInvoiceListeners(true);
           }
         };
         
@@ -1335,7 +1226,6 @@
         }
 
         showAlert('Success', `Invoice #${formattedId} - Marked as Paid!` + (sendNotification ? ' WhatsApp notification and paid invoice sent.' : ''));
-        initializeInvoiceListeners(true);
       } catch (error) {
         console.error('Error marking invoice as paid:', error);
         showAlert('Error', 'Failed to mark invoice as paid: ' + error.message);
@@ -1345,7 +1235,7 @@
     // Handle filter button click
     function handleFilter() {
       // Re-render invoices with current filter
-      initializeInvoiceListeners(true);
+      setupInvoiceListener();
     }
     
     // Show alert modal
@@ -1373,7 +1263,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       loadUsers();
       loadPackages();
-      initializeInvoiceListeners(true);
+      setupInvoiceListener();
       setDefaultDueDate();
     });
     
@@ -1388,7 +1278,6 @@
     packageSelect.addEventListener('change', handlePackageChange);
     cancelBtn.addEventListener('click', cancelEdit);
     filterBtn.addEventListener('click', handleFilter);
-    loadMoreBtn.addEventListener('click', () => initializeInvoiceListeners(false));
     generateAllInvoicesBtn.addEventListener('click', generateAllInvoices);
     sendAllRemindersBtn.addEventListener('click', sendPaymentReminders);
     broadcastAlertBtn.addEventListener('click', openBroadcastDialog);

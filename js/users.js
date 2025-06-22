@@ -572,21 +572,21 @@ export function resetCache() {
 }
 
 /**
- * Listen to users collection changes
- * @param {function} callback - Function to call when data changes
- * @returns {function} - Unsubscribe function
+ * Creates a real-time listener for users.
+ * @param {function} callback - The function to call with the users data.
+ * @returns {function} - The unsubscribe function for the listener.
  */
 export function listenToUsers(callback) {
-  return onSnapshot(usersCollection, (snapshot) => {
-    const users = [];
-    snapshot.forEach((doc) => {
-      users.push({
-        id: doc.id,
-        ...doc.data()
-      });
+    const q = query(collection(db, "users"), orderBy("name"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(users);
+    }, (error) => {
+        console.error("Error listening to users:", error);
     });
-    callback(users);
-  });
+
+    return unsubscribe;
 }
 
 /**

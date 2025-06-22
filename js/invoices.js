@@ -350,21 +350,47 @@ export async function sendPaymentReminders(reminderType = 'overdue') {
 }
 
 /**
- * Listen to invoices collection changes
- * @param {function} callback - Function to call when data changes
- * @returns {function} - Unsubscribe function
+ * Creates a real-time listener for invoices.
+ * @param {object} filters - Filtering options (status, month, year).
+ * @param {function} callback - The function to call with the invoices data.
+ * @returns {function} - The unsubscribe function for the listener.
  */
-export function listenToInvoices(callback) {
-  return onSnapshot(invoicesCollection, (snapshot) => {
-    const invoices = [];
-    snapshot.forEach((doc) => {
-      invoices.push({
-        id: doc.id,
-        ...doc.data()
-      });
+export function listenToInvoices(filters, callback) {
+    let q = collection(db, 'invoices');
+    let queryConstraints = [];
+
+    // Filtering
+    if (filters.status && filters.status !== 'all') {
+        queryConstraints.push(where('status', '==', filters.status));
+    }
+     if (filters.month && filters.month !== 'all') {
+        const year = filters.year || new Date().getFullYear();
+        const startDate = new Date(year, parseInt(filters.month), 1);
+        const endDate = new Date(year, parseInt(filters.month) + 1, 1);
+        queryConstraints.push(where('dueDate', '>=', startDate));
+        queryConstraints.push(where('dueDate', '<', endDate));
+    } else if (filters.year && filters.year !== 'all') {
+        const startDate = new Date(filters.year, 0, 1);
+        const endDate = new Date(parseInt(filters.year) + 1, 0, 1);
+        queryConstraints.push(where('dueDate', '>=', startDate));
+        queryConstraints.push(where('dueDate', '<', endDate));
+    }
+
+    // Ordering and limiting for performance
+    queryConstraints.push(orderBy('dueDate', 'desc'));
+    queryConstraints.push(limit(50)); // Listen to the 50 most recent invoices
+
+    q = query(q, ...queryConstraints);
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const invoices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(invoices);
+    }, (error) => {
+        console.error("Error listening to invoices:", error);
+        // Optionally, you could have a callback for errors as well
     });
-    callback(invoices);
-  });
+
+    return unsubscribe;
 }
 
 /**

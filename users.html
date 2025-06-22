@@ -177,16 +177,9 @@
   <!-- Scripts -->
   <script type="module">
     // Import Firebase modules
-    import { db, collection, getDocs } from './js/firebaseConfig.js';
-    import { 
-      addUser, 
-      updateUser, 
-      deleteUser, 
-      getPaginatedUsers, 
-      getTotalUsersCount, 
-      searchUsersByName,
-      resetPagination 
-    } from './js/users.js';
+    import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy } from './js/firebaseConfig.js';
+    import { listenToUsers, addUser, updateUser, deleteUser, assignPackageToUser } from './js/users.js';
+    import { getPackages } from './js/packages.js';
     
     // DOM Elements
     const userForm = document.getElementById('addUserForm');
@@ -227,6 +220,8 @@
     let currentPage = 1;
     let totalPages = 1;
     let isSearching = false;
+    let editingUserId = null;
+    let unsubscribeUsers = null;
     
     // Load packages for dropdown
     async function loadPackages() {
@@ -294,7 +289,7 @@
       }
       
       await loadCurrentPage();
-      }
+    }
       
     // Load current page of users
     async function loadCurrentPage() {
@@ -310,6 +305,19 @@
         console.error("Error loading users:", error);
         showAlert("Error", "Failed to load users: " + error.message);
       }
+    }
+    
+    // Load users with a real-time listener
+    function setupUserListener() {
+        if (unsubscribeUsers) {
+            unsubscribeUsers();
+        }
+
+        usersList.innerHTML = '<tr><td colspan="6" class="text-center">Loading real-time users...</td></tr>';
+
+        unsubscribeUsers = listenToUsers((users) => {
+            renderUsers(users);
+        });
     }
     
     // Render users in the table
@@ -528,15 +536,9 @@
     }
     
     // Event listeners
-    document.addEventListener('DOMContentLoaded', async () => {
-      try {
-        await loadPackages();
-        await initializePagination();
-        await loadCurrentPage();
-      } catch (error) {
-        console.error("Error initializing page:", error);
-        showAlert("Error", "Failed to initialize page: " + error.message);
-      }
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPackages();
+      setupUserListener();
     });
     
     userForm.addEventListener('submit', handleFormSubmit);
@@ -564,6 +566,12 @@
     
     nextPageBtn.addEventListener('click', async () => {
       await handlePagination('next');
+    });
+
+    window.addEventListener('unload', () => {
+        if (unsubscribeUsers) {
+            unsubscribeUsers();
+        }
     });
   </script>
 </body>

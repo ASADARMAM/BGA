@@ -855,44 +855,42 @@ async function sendBatchMessages(users, messageType, data = {}) {
 
 // Helper function to format messages
 async function formatMessage(user, type, data) {
-    const template = MESSAGE_TEMPLATES[type];
-    if (!template) throw new Error(`Invalid message type: ${type}`);
+    let template = MESSAGE_TEMPLATES[type] || '';
+    
+    // Replace user-specific placeholders
+    template = template.replace(/{userName}/g, user.name);
 
-    return template
-        .replace('{userName}', user.name)
-        .replace('{formattedId}', data.formattedId || data.invoiceId || data.id || '')
-        .replace('{amount}', formatAmount(data.amount) || '')
-        .replace('{dueDate}', data.dueDate ? formatDate(data.dueDate) : '')
-        .replace('{message}', data.message || '')
-        .replace('{invoiceLink}', generateInvoiceLink(data.id || data.invoiceId || ''));
+    // Replace data-specific placeholders
+    if (data) {
+        // Ensure amount is formatted correctly
+        if (data.amount) {
+            template = template.replace(/{amount}/g, formatAmount(data.amount));
+        }
+        // Ensure dueDate is formatted correctly
+        if (data.dueDate) {
+            template = template.replace(/{dueDate}/g, formatDate(data.dueDate));
+        }
+        // Replace other invoice data
+        template = template.replace(/{invoiceLink}/g, data.invoiceLink || '');
+        template = template.replace(/{formattedId}/g, data.formattedId || data.id || '');
+        template = template.replace(/{message}/g, data.message || '');
+    }
+    
+    return template;
 }
 
-// Format date
+// Utility function to format dates
 function formatDate(date) {
     if (!date) return 'N/A';
-    
     try {
-        // Handle different date formats
-        let dateObj;
-        if (typeof date === 'object' && date.seconds) {
-            // Handle Firestore timestamp
-            dateObj = new Date(date.seconds * 1000);
-        } else if (date instanceof Date) {
-            dateObj = date;
-        } else if (typeof date === 'string') {
-            dateObj = new Date(date);
-        } else if (typeof date === 'number') {
-            dateObj = new Date(date);
-        } else {
-            dateObj = new Date();
-        }
-        
-        // Verify date is valid
-        if (isNaN(dateObj.getTime())) {
-            throw new Error("Invalid date");
-        }
-        
-        return dateObj.toISOString().split('T')[0]; // YYYY-MM-DD format
+        // Handle Firestore Timestamp objects, Date objects, and date strings
+        const d = date.toDate ? date.toDate() : new Date(date);
+        if (isNaN(d.getTime())) return 'N/A'; // Invalid date
+        return d.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
     } catch (error) {
         console.error("Error formatting date:", error);
         return 'N/A';

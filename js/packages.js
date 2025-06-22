@@ -1,5 +1,5 @@
- // Packages management module
-import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, getDoc } from './firebaseConfig.js';
+// Packages management module
+import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, getDoc, query, orderBy } from './firebaseConfig.js';
 
 // Collection reference
 const packagesCollection = collection(db, "packages");
@@ -111,19 +111,19 @@ export async function getPackageById(packageId) {
 }
 
 /**
- * Listen to packages collection changes
- * @param {function} callback - Function to call when data changes
- * @returns {function} - Unsubscribe function
+ * Creates a real-time listener for packages.
+ * @param {function} callback - The function to call with the packages data.
+ * @returns {function} - The unsubscribe function for the listener.
  */
 export function listenToPackages(callback) {
-  return onSnapshot(packagesCollection, (snapshot) => {
-    const packages = [];
-    snapshot.forEach((doc) => {
-      packages.push({
-        id: doc.id,
-        ...doc.data()
-      });
+    const q = query(collection(db, "packages"), orderBy("name"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const packages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(packages);
+    }, (error) => {
+        console.error("Error listening to packages:", error);
     });
-    callback(packages);
-  });
+
+    return unsubscribe;
 }
