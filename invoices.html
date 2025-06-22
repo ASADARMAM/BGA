@@ -12,6 +12,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <!-- html2canvas for image generation -->
   <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <!-- Cache busting meta tag -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
 </head>
 <body>
   <!-- Navigation -->
@@ -248,7 +252,10 @@
 
   <!-- Scripts -->
   <script type="module">
-    // Import Firebase modules
+    // Add cache-busting timestamp
+    const cacheBuster = Date.now();
+    
+    // Import Firebase modules with cache busting
     import {
         db,
         collection,
@@ -262,15 +269,16 @@
         orderBy,
         limit,
         startAfter,
-        getDoc
-    } from './js/firebaseConfig.js';
+        getDoc,
+        setDoc
+    } from `./js/firebaseConfig.js?v=${cacheBuster}`;
     import {
         getUsers
-    } from './js/users.js';
+    } from `./js/users.js?v=${cacheBuster}`;
     import {
         getPackages,
         getPackageById
-    } from './js/packages.js';
+    } from `./js/packages.js?v=${cacheBuster}`;
     import {
         listenToInvoices,
         addInvoice,
@@ -278,17 +286,17 @@
         deleteInvoice,
         generateInvoicesForAllUsers as generateAll,
         sendPaymentReminders as sendAllReminders
-    } from './js/invoices.js';
+    } from `./js/invoices.js?v=${cacheBuster}`;
     import {
         sendInvoiceNotification,
         sendInvoicePdf,
         formatMessage
-    } from './js/whatsapp.js';
+    } from `./js/whatsapp.js?v=${cacheBuster}`;
     import {
         generateInvoiceImage,
         generateFormattedInvoiceId,
         formatAmount
-    } from './js/invoiceGenerator.js';
+    } from `./js/invoiceGenerator.js?v=${cacheBuster}`;
 
     // DOM Elements
     const invoiceForm = document.getElementById('createInvoiceForm');
