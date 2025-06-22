@@ -366,8 +366,19 @@
 
         // Populate invoice details
         document.getElementById('invoiceNumber').textContent = invoice.formattedId || id;
-        const invoiceDateTs = invoice.createdAt ? (invoice.createdAt.seconds || invoice.createdAt._seconds) : (invoice.dueDate ? (invoice.dueDate.seconds || invoice.dueDate._seconds) : null);
-        document.getElementById('invoiceDate').textContent = invoiceDateTs ? new Date(invoiceDateTs * 1000).toLocaleDateString() : 'N/A';
+        const invoiceDateTs = invoice.createdAt ? (invoice.createdAt.seconds || invoice.createdAt._seconds || invoice.createdAt) :
+                                  (invoice.dueDate ? (invoice.dueDate.seconds || invoice.dueDate._seconds || invoice.dueDate) : null);
+        let invoiceDate;
+        if (invoiceDateTs) {
+          // if numeric seconds
+          if (typeof invoiceDateTs === 'number') {
+            // distinguish between seconds & millis (greater than year 3000 means millis)
+            invoiceDate = invoiceDateTs > 32503680000 ? new Date(invoiceDateTs) : new Date(invoiceDateTs * 1000);
+          } else if (typeof invoiceDateTs === 'string') {
+            invoiceDate = new Date(invoiceDateTs);
+          }
+        }
+        document.getElementById('invoiceDate').textContent = invoiceDate ? invoiceDate.toLocaleDateString() : 'N/A';
         document.getElementById('dueDate').textContent = invoice.dueDate ? new Date((invoice.dueDate.seconds || invoice.dueDate._seconds) * 1000).toLocaleDateString() : 'N/A';
         
         // You'll need to fetch and display customer details separately if they aren't on the invoice document
