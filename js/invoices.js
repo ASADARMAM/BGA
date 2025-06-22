@@ -14,7 +14,9 @@ import {
     serverTimestamp,
     increment,
     getDocs,
-    getDoc
+    getDoc,
+    startAfter,
+    limit
 } from './firebaseConfig.js';
 import {
     sendInvoiceNotification
@@ -615,4 +617,85 @@ export async function getInvoices(filters = {}, lastVisible) {
         invoices,
         lastVisible: snapshot.docs[snapshot.docs.length - 1]
     };
+}
+
+/**
+ * Send payment reminders for all overdue invoices
+ * @param {object} options - Options for sending reminders
+ * @returns {Promise<object>} - Results of the operation
+ */
+export async function sendPaymentReminders(options = {}) {
+    try {
+        console.log("Starting to send payment reminders for overdue invoices...");
+        
+        // Find all overdue invoices
+        const today = new Date();
+        const overdueQuery = query(
+            collection(db, "invoices"),
+            where("status", "==", "Due"),
+            where("dueDate", "<", today)
+        );
+        
+        const snapshot = await getDocs(overdueQuery);
+        const overdueInvoices = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        
+        console.log(`Found ${overdueInvoices.length} overdue invoices`);
+        
+        if (overdueInvoices.length === 0) {
+            return {
+                success: true,
+                message: "No overdue invoices found",
+                remindersSent: 0
+            };
+        }
+        
+        // Import the sendPaymentReminder function from the WhatsApp module
+        const { sendPaymentReminder } = await import('./modules/whatsapp/sendInvoiceLink.js');
+        
+        // Send reminders with rate limiting to avoid API throttling
+        let successCount = 0;
+        let failureCount = 0;
+        
+        for (const invoice of overdueInvoices) {
+            try {
+                // Mark invoice as overdue
+                await updateInvoice(invoice.id, { status: "Overdue" });
+                
+                // Send the reminder
+                const result = await sendPaymentReminder(invoice.id);
+                
+                if (result.success) {
+                    successCount++;
+                    console.log(`Successfully sent reminder for invoice ${invoice.id}`);
+                } else {
+                    failureCount++;
+                    console.error(`Failed to send reminder for invoice ${invoice.id}: ${result.message}`);
+                }
+                
+                // Add a small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (error) {
+                failureCount++;
+                console.error(`Error processing reminder for invoice ${invoice.id}:`, error);
+            }
+        }
+        
+        return {
+            success: true,
+            message: `Sent ${successCount} reminders with ${failureCount} failures`,
+            remindersSent: successCount,
+            remindersFailed: failureCount,
+            total: overdueInvoices.length
+        };
+    } catch (error) {
+        console.error("Error sending payment reminders:", error);
+        return {
+            success: false,
+            message: `Failed to send payment reminders: ${error.message}`,
+            remindersSent: 0
+        };
+    }
 } 
