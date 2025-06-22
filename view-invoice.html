@@ -378,9 +378,35 @@
     // Update UI with invoice data
     function updateInvoiceUI(invoice, user, packageData) {
       // Update invoice details
-      invoiceNumber.textContent = invoice.id;
-      invoiceDate.textContent = formatDate(invoice.date);
-      dueDate.textContent = formatDate(invoice.dueDate);
+      invoiceNumber.textContent = invoice.formattedId || invoice.id;
+      
+      const resolvedDate = (() => {
+        // Prefer Firestore Timestamp
+        if (invoice.createdAt) {
+          if (typeof invoice.createdAt.toDate === 'function') return invoice.createdAt.toDate();
+          const sec = invoice.createdAt.seconds || invoice.createdAt._seconds;
+          if (sec) return new Date(sec * 1000);
+          if (typeof invoice.createdAt === 'number') return new Date(invoice.createdAt);
+          if (typeof invoice.createdAt === 'string') return new Date(invoice.createdAt);
+        }
+        // Fallback to dueDate
+        if (invoice.dueDate) {
+          if (typeof invoice.dueDate.toDate === 'function') return invoice.dueDate.toDate();
+          const sec = invoice.dueDate.seconds || invoice.dueDate._seconds;
+          if (sec) return new Date(sec * 1000);
+        }
+        // Derive from formattedId YYYYMM prefix
+        if (invoice.formattedId && invoice.formattedId.length >= 6) {
+          const yr = invoice.formattedId.substring(0,4);
+          const mo = invoice.formattedId.substring(4,6);
+          const d = new Date(`${yr}-${mo}-01`);
+          if (!isNaN(d.getTime())) return d;
+        }
+        return null;
+      })();
+      
+      invoiceDate.textContent = resolvedDate ? resolvedDate.toLocaleDateString('en-US') : 'N/A';
+      dueDate.textContent = invoice.dueDate ? formatDate(invoice.dueDate) : 'N/A';
       
       // Update status
       if (invoice.status === 'Paid') {
