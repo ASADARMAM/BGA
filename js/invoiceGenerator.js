@@ -54,6 +54,15 @@ function formatCurrency(amount) {
   return `Rs${amount}.00`;
 }
 
+// Format amount with commas for readability
+export function formatAmount(amount) {
+    if (amount === null || amount === undefined) {
+        return '0';
+    }
+    // Use Intl.NumberFormat for robust, locale-aware formatting
+    return new Intl.NumberFormat('en-IN').format(amount);
+}
+
 // Format date
 function formatDate(date) {
   try {
