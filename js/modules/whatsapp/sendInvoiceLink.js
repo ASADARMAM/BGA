@@ -31,20 +31,33 @@ export async function sendInvoiceLink(invoiceId) {
     // Generate the direct link to the invoice
     const invoiceLink = `${INVOICE_BASE_URL}${invoice.id}`;
     
-    // Create the message template
-    const message = `Dear ${user.name},
-
-Your invoice for WeCloud Internet Services is ready.
-
-*Invoice #:* ${invoice.id}
-*Amount:* PKR ${invoice.amount}
-*Due Date:* ${dueDate}
-
-View your invoice online: ${invoiceLink}
-
-Thank you for choosing WeCloud Internet Services!`;
+    // Format the invoice ID properly
+    const invoiceId = invoice.formattedId || invoice.id;
     
-    // Send the message via WhatsApp
+    // Create a single consolidated message template
+    const message = `*📋 INVOICE NOTIFICATION*
+━━━━━━━━━━━━━━━━━━━━━
+
+Dear *${user.name}*,
+
+Your invoice has been generated.
+
+*📊 INVOICE DETAILS*
+━━━━━━━━━━━━
+• *Invoice ID:* ${invoiceId}
+• *Amount:* PKR ${invoice.amount}.00
+• *Due Date:* ${dueDate}
+
+*🔗 VIEW INVOICE*
+━━━━━━━━━━━━
+Click here to view your invoice:
+${invoiceLink}
+
+Please make payment before the due date to avoid service interruption.
+
+Thank you for choosing WeCloud Internet Services! 🌟`;
+    
+    // Send the message via WhatsApp only once
     const result = await sendWhatsAppMessage(user.phone, message);
     
     return {
@@ -94,19 +107,34 @@ export async function sendPaymentReminder(invoiceId) {
     // Generate the direct link to the invoice
     const invoiceLink = `${INVOICE_BASE_URL}${invoice.id}`;
     
-    // Create the reminder message template
-    const message = `Dear ${user.name},
+    // Format the invoice ID properly
+    const invoiceId = invoice.formattedId || invoice.id;
+    
+    // Create a single consolidated reminder message
+    const message = `*⚠️ PAYMENT REMINDER*
+━━━━━━━━━━━━━━━━━━━━━
 
-This is a friendly reminder that your invoice #${invoice.id} for PKR ${invoice.amount} is due on ${dueDate}.
+Dear *${user.name}*,
 
-View your invoice and make payment: ${invoiceLink}
+This is a friendly reminder that your invoice is due soon.
+
+*📊 INVOICE DETAILS*
+━━━━━━━━━━━━
+• *Invoice #:* ${invoiceId}
+• *Amount Due:* PKR ${invoice.amount}.00
+• *Due Date:* ${dueDate}
+
+*🔗 VIEW INVOICE*
+━━━━━━━━━━━━
+Click here to view your invoice:
+${invoiceLink}
 
 If you have already made the payment, please disregard this message.
 
 Thank you for your business!
-WeCloud Internet Services`;
+WeCloud Internet Services 🌟`;
     
-    // Send the message via WhatsApp
+    // Send the message via WhatsApp only once
     const result = await sendWhatsAppMessage(user.phone, message);
     
     return {
