@@ -378,6 +378,12 @@
             invoiceDate = new Date(invoiceDateTs);
           }
         }
+        if (!invoiceDate && invoice.formattedId && invoice.formattedId.length >= 6) {
+          const yr = invoice.formattedId.substring(0,4);
+          const mo = invoice.formattedId.substring(4,6);
+          const derivedDate = new Date(`${yr}-${mo}-01`);
+          if (!isNaN(derivedDate.getTime())) invoiceDate = derivedDate;
+        }
         document.getElementById('invoiceDate').textContent = invoiceDate ? invoiceDate.toLocaleDateString() : 'N/A';
         document.getElementById('dueDate').textContent = invoice.dueDate ? new Date((invoice.dueDate.seconds || invoice.dueDate._seconds) * 1000).toLocaleDateString() : 'N/A';
         
