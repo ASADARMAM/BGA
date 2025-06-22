@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice - WeCloud Internet Services</title>
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore-compat.js"></script>
+  <!-- jsPDF for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f7fa;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .invoice-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #fff;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+    }
+    
+    .invoice-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 20px;
+    }
+    
+    .invoice-logo {
+      display: flex;
+      align-items: center;
+    }
+    
+    .invoice-logo img {
+      height: 40px;
+      margin-right: 10px;
+    }
+    
+    .invoice-details {
+      margin-bottom: 30px;
+    }
+    
+    .invoice-details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    .detail-group {
+      margin-bottom: 15px;
+    }
+    
+    .detail-label {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+    
+    .detail-value {
+      font-weight: bold;
+    }
+    
+    .invoice-items {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+    
+    .invoice-items th {
+      background-color: #f8f9fa;
+      padding: 12px;
+      text-align: left;
+      font-weight: bold;
+    }
+    
+    .invoice-items td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .invoice-total {
+      text-align: right;
+      margin-top: 20px;
+      font-size: 18px;
+    }
+    
+    .invoice-total .total-amount {
+      font-weight: bold;
+      font-size: 22px;
+      color: #2c3e50;
+    }
+    
+    .invoice-footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .status-paid {
+      background-color: #e8f5e9;
+      color: #2e7d32;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    
+    .status-unpaid {
+      background-color: #ffebee;
+      color: #c62828;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    
+    .paid-stamp {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      border: 5px solid #4CAF50;
+      color: #4CAF50;
+      padding: 10px 40px;
+      font-size: 48px;
+      font-weight: bold;
+      text-transform: uppercase;
+      opacity: 0.8;
+      z-index: 10;
+      display: none;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+    }
+    
+    .error {
+      background-color: #ffebee;
+      color: #c62828;
+      padding: 20px;
+      border-radius: 4px;
+      margin: 20px auto;
+      max-width: 800px;
+    }
+    
+    .action-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 30px;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      text-align: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      border: none;
+    }
+    
+    .btn-primary {
+      background-color: #1a73e8;
+      color: white;
+    }
+    
+    .btn-outline {
+      background-color: white;
+      color: #1a73e8;
+      border: 1px solid #1a73e8;
+    }
+    
+    .btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    
+    .footer {
+      text-align: center;
+      margin-top: 60px;
+      padding: 20px;
+      color: #666;
+    }
+    
+    @media print {
+      .action-buttons, .footer {
+        display: none !important;
+      }
+      
+      body {
+        background: white;
+      }
+      
+      .invoice-container {
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Main Content -->
+  <div class="container">
+    <div id="loadingIndicator" class="loading">
+      <i class="fas fa-spinner fa-spin fa-3x"></i>
+      <p>Loading invoice...</p>
+    </div>
+    
+    <div id="errorContainer" class="error" style="display: none;"></div>
+    
+    <div id="invoiceContainer" class="invoice-container" style="display: none;">
+      <div id="paidStamp" class="paid-stamp">PAID</div>
+      <div class="invoice-header">
+        <div class="invoice-logo">
+          <img src="https://asadarmam.github.io/wecloud-invoices/assets/logo.svg" alt="WeCloud Logo" id="companyLogo">
+          <h2>WeCloud Internet Services</h2>
+        </div>
+        <div>
+          <h1>INVOICE</h1>
+          <div id="invoiceStatus" class="status-paid">PAID</div>
+        </div>
+      </div>
+      
+      <div class="invoice-details">
+        <div class="invoice-details-grid">
+          <div>
+            <div class="detail-group">
+              <div class="detail-label">Invoice Number</div>
+              <div id="invoiceNumber" class="detail-value"></div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Invoice Date</div>
+              <div id="invoiceDate" class="detail-value"></div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Due Date</div>
+              <div id="dueDate" class="detail-value"></div>
+            </div>
+          </div>
+          
+          <div>
+            <div class="detail-group">
+              <div class="detail-label">Bill To</div>
+              <div id="customerName" class="detail-value"></div>
+              <div id="customerPhone"></div>
+              <div id="customerEmail"></div>
+              <div id="customerAddress"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <table class="invoice-items">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Period</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td id="packageName"></td>
+            <td id="billingPeriod"></td>
+            <td id="packageAmount"></td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <div class="invoice-total">
+        <div>Total Amount</div>
+        <div id="totalAmount" class="total-amount"></div>
+      </div>
+      
+      <div class="action-buttons">
+        <button id="printBtn" class="btn btn-primary">
+          <i class="fas fa-print"></i> Print Invoice
+        </button>
+        <button id="downloadBtn" class="btn btn-outline">
+          <i class="fas fa-download"></i> Download PDF
+        </button>
+      </div>
+      
+      <div class="invoice-footer">
+        <p>Thank you for choosing WeCloud Internet Services!</p>
+        <p>For any questions, please contact us at support@wecloud.com</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; 2023 WeCloud Internet Services. All rights reserved.</p>
+  </footer>
+
+  <script>
+    // Initialize Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyAExSaJx0_YU_ZkXcGqkAiDtgljo8cPJRQ",
+      authDomain: "ispnet-6ab93.firebaseapp.com",
+      projectId: "ispnet-6ab93",
+      storageBucket: "ispnet-6ab93.firebasestorage.app",
+      messagingSenderId: "332292008834",
+      appId: "1:332292008834:web:60adaaee92ff9899363d9b",
+      measurementId: "G-L3084YL4ZL"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    // DOM Elements
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const errorContainer = document.getElementById('errorContainer');
+    const invoiceContainer = document.getElementById('invoiceContainer');
+    const invoiceStatus = document.getElementById('invoiceStatus');
+    const invoiceNumber = document.getElementById('invoiceNumber');
+    const invoiceDate = document.getElementById('invoiceDate');
+    const dueDate = document.getElementById('dueDate');
+    const customerName = document.getElementById('customerName');
+    const customerPhone = document.getElementById('customerPhone');
+    const customerEmail = document.getElementById('customerEmail');
+    const customerAddress = document.getElementById('customerAddress');
+    const packageName = document.getElementById('packageName');
+    const billingPeriod = document.getElementById('billingPeriod');
+    const packageAmount = document.getElementById('packageAmount');
+    const totalAmount = document.getElementById('totalAmount');
+    const printBtn = document.getElementById('printBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const companyLogo = document.getElementById('companyLogo');
+    
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      // Get invoice ID from URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const invoiceId = urlParams.get('id');
+      
+      if (invoiceId) {
+        loadInvoice(invoiceId);
+      } else {
+        showError('No invoice ID provided. Please check the URL.');
+      }
+      
+      // Button event listeners
+      printBtn.addEventListener('click', printInvoice);
+      downloadBtn.addEventListener('click', downloadInvoice);
+    });
+    
+    // Load invoice data
+    async function loadInvoice(invoiceId) {
+      try {
+        // Get invoice data
+        const invoiceDoc = await db.collection('invoices').doc(invoiceId).get();
+        
+        if (!invoiceDoc.exists) {
+          showError('Invoice not found. Please check the invoice ID.');
+          return;
+        }
+        
+        const invoice = { id: invoiceDoc.id, ...invoiceDoc.data() };
+        
+        // Get user data
+        const userDoc = await db.collection('users').doc(invoice.userId).get();
+        if (!userDoc.exists) {
+          showError('User information not found for this invoice.');
+          return;
+        }
+        const user = { id: userDoc.id, ...userDoc.data() };
+        
+        // Get package data
+        const packageDoc = await db.collection('packages').doc(invoice.packageId).get();
+        if (!packageDoc.exists) {
+          showError('Package information not found for this invoice.');
+          return;
+        }
+        const packageData = { id: packageDoc.id, ...packageDoc.data() };
+        
+        // Update UI with invoice data
+        updateInvoiceUI(invoice, user, packageData);
+        
+        // Hide loading indicator and show invoice
+        loadingIndicator.style.display = 'none';
+        invoiceContainer.style.display = 'block';
+      } catch (error) {
+        console.error('Error loading invoice:', error);
+        showError('Failed to load invoice: ' + error.message);
+      }
+    }
+    
+    // Update UI with invoice data
+    function updateInvoiceUI(invoice, user, packageData) {
+      // Update invoice details
+      invoiceNumber.textContent = invoice.id;
+      invoiceDate.textContent = formatDate(invoice.date);
+      dueDate.textContent = formatDate(invoice.dueDate);
+      
+      // Update status
+      if (invoice.status === 'Paid') {
+        invoiceStatus.textContent = 'PAID';
+        invoiceStatus.className = 'status-paid';
+        // Show the PAID stamp
+        document.getElementById('paidStamp').style.display = 'block';
+      } else {
+        invoiceStatus.textContent = 'UNPAID';
+        invoiceStatus.className = 'status-unpaid';
+        // Hide the PAID stamp
+        document.getElementById('paidStamp').style.display = 'none';
+      }
+      
+      // Update customer details
+      customerName.textContent = user.name;
+      customerPhone.textContent = user.phone || 'N/A';
+      customerEmail.textContent = user.email || 'N/A';
+      customerAddress.textContent = user.address || 'N/A';
+      
+      // Update package details
+      packageName.textContent = packageData.name;
+      billingPeriod.textContent = `${formatDate(invoice.date)} - ${formatDate(invoice.dueDate)}`;
+      packageAmount.textContent = formatCurrency(invoice.amount);
+      
+      // Update total
+      totalAmount.textContent = formatCurrency(invoice.amount);
+    }
+    
+    // Format date
+    function formatDate(timestamp) {
+      if (!timestamp) return 'N/A';
+      
+      let date;
+      if (timestamp.seconds) {
+        // Handle Firestore timestamp
+        date = new Date(timestamp.seconds * 1000);
+      } else {
+        date = new Date(timestamp);
+      }
+      
+      // Format as DD/MM/YYYY as shown in the example
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      
+      return `${day}/${month}/${year}`;
+    }
+    
+    // Format currency
+    function formatCurrency(amount) {
+      // Format as Rs1000.00 as shown in the example
+      return `Rs${amount}.00`;
+    }
+    
+    // Print invoice
+    function printInvoice() {
+      window.print();
+    }
+    
+    // Download invoice as PDF
+    async function downloadInvoice() {
+      try {
+        // Show loading indicator
+        loadingIndicator.style.display = 'block';
+        invoiceContainer.style.display = 'none';
+        
+        // Get invoice element
+        const invoice = document.getElementById('invoiceContainer');
+        invoice.style.display = 'block'; // Make it visible for capture
+        
+        // Create PDF using html2canvas and jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'pt', 'a4');
+        
+        // Capture the invoice as an image
+        const canvas = await html2canvas(invoice, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true
+        });
+        
+        // Add image to PDF
+        const imgData = canvas.toDataURL('image/png');
+        const pdfWidth = doc.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        
+        doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        
+        // Save PDF
+        const urlParams = new URLSearchParams(window.location.search);
+        const invoiceId = urlParams.get('id');
+        doc.save(`Invoice-${invoiceId}.pdf`);
+        
+        // Hide loading indicator and show invoice again
+        loadingIndicator.style.display = 'none';
+        invoiceContainer.style.display = 'block';
+      } catch (error) {
+        console.error('Error downloading invoice:', error);
+        showError('Failed to download invoice: ' + error.message);
+        
+        // Hide loading indicator
+        loadingIndicator.style.display = 'none';
+        invoiceContainer.style.display = 'block';
+      }
+    }
+    
+    // Show error message
+    function showError(message) {
+      loadingIndicator.style.display = 'none';
+      errorContainer.style.display = 'block';
+      errorContainer.textContent = message;
+    }
+  </script>
+</body>
+</html> 
