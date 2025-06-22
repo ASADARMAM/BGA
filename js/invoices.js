@@ -393,7 +393,9 @@ export async function getTotalRevenue() {
   }
 }
 
-// Get paginated invoices with caching
+// Get paginated invoices with caching - THIS IS BEING REMOVED
+// The new getInvoices function at the end of the file provides better filtering and pagination
+/*
 export async function getPaginatedInvoices(page = 1, filters = {}) {
   try {
     const cacheKey = JSON.stringify({ page, filters });
@@ -458,6 +460,7 @@ export async function getPaginatedInvoices(page = 1, filters = {}) {
     throw error;
   }
 }
+*/
 
 // Process invoices in optimized batches
 async function processBatch(users, options = {}) {
