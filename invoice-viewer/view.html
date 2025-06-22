@@ -364,10 +364,10 @@
         const invoiceDoc = querySnapshot.docs[0];
         const invoice = invoiceDoc.data();
 
-        // Populate invoice details (you'll need to expand this based on your data structure)
-        document.getElementById('invoice-number').textContent = invoice.formattedId || id;
-        document.getElementById('invoice-date').textContent = invoice.createdAt ? new Date(invoice.createdAt.seconds * 1000).toLocaleDateString() : 'N/A';
-        document.getElementById('due-date').textContent = invoice.dueDate ? new Date(invoice.dueDate.seconds * 1000).toLocaleDateString() : 'N/A';
+        // Populate invoice details
+        document.getElementById('invoiceNumber').textContent = invoice.formattedId || id;
+        document.getElementById('invoiceDate').textContent = invoice.createdAt ? new Date((invoice.createdAt.seconds || invoice.createdAt._seconds) * 1000).toLocaleDateString() : 'N/A';
+        document.getElementById('dueDate').textContent = invoice.dueDate ? new Date((invoice.dueDate.seconds || invoice.dueDate._seconds) * 1000).toLocaleDateString() : 'N/A';
         
         // You'll need to fetch and display customer details separately if they aren't on the invoice document
         document.getElementById('bill-to-name').textContent = invoice.customerName || 'Customer Name'; // Example
