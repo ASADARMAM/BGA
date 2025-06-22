@@ -820,4 +820,49 @@ export function resetCache() {
     data: new Map(),
     timestamp: null
   };
+}
+
+// Get invoices with pagination and filtering
+export async function getInvoices(filters = {}, lastVisible) {
+    let q = collection(db, 'invoices');
+    let queryConstraints = [];
+
+    // Filtering
+    if (filters.status && filters.status !== 'all') {
+        queryConstraints.push(where('status', '==', filters.status));
+    }
+    if (filters.userId) {
+        queryConstraints.push(where('userId', '==', filters.userId));
+    }
+    if (filters.month && filters.month !== 'all') {
+        const year = filters.year || new Date().getFullYear();
+        const startDate = new Date(year, parseInt(filters.month), 1);
+        const endDate = new Date(year, parseInt(filters.month) + 1, 1);
+        queryConstraints.push(where('dueDate', '>=', startDate));
+        queryConstraints.push(where('dueDate', '<', endDate));
+    } else if (filters.year && filters.year !== 'all') {
+        const startDate = new Date(filters.year, 0, 1);
+        const endDate = new Date(parseInt(filters.year) + 1, 0, 1);
+        queryConstraints.push(where('dueDate', '>=', startDate));
+        queryConstraints.push(where('dueDate', '<', endDate));
+    }
+
+    // Ordering
+    queryConstraints.push(orderBy('dueDate', 'desc'));
+
+    // Pagination
+    if (lastVisible) {
+        queryConstraints.push(startAfter(lastVisible));
+    }
+    queryConstraints.push(limit(15)); // Fetch 15 invoices per page
+
+    q = query(q, ...queryConstraints);
+
+    const snapshot = await getDocs(q);
+    const invoices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    return {
+        invoices,
+        lastVisible: snapshot.docs[snapshot.docs.length - 1]
+    };
 } 

@@ -204,6 +204,9 @@
             </tr>
           </tbody>
         </table>
+        <div class="table-footer">
+            <button id="loadMoreBtn" class="btn btn-secondary" style="display: none;">Load More</button>
+        </div>
       </div>
     </div>
     
@@ -249,10 +252,10 @@
   <!-- Scripts -->
   <script type="module">
     // Import Firebase modules
-    import { db, collection, addDoc, getDocs, doc, updateDoc, query, where, onSnapshot, orderBy, limit } from './js/firebaseConfig.js';
+    import { db, collection, addDoc, getDocs, doc, updateDoc, query, where, onSnapshot, orderBy, limit, startAfter, getDoc } from './js/firebaseConfig.js';
     import { getUsers } from './js/users.js';
     import { getPackages } from './js/packages.js';
-    import { updateInvoice, listenToInvoices } from './js/invoices.js';
+    import { getInvoices, createInvoice, updateInvoice, deleteInvoice, generateInvoiceId } from './js/invoices.js';
     import { sendInvoiceNotification, sendInvoicePdf, sendPaymentReminder, sendBroadcastAlert, sendPaidInvoiceNotification } from './js/whatsapp.js';
     import { generateInvoiceImage, generateFormattedInvoiceId } from './js/invoiceGenerator.js';
     
@@ -274,6 +277,7 @@
     const broadcastAlertBtn = document.getElementById('broadcastAlertBtn');
     const menuToggle = document.getElementById('menuToggle');
     const navLinks = document.getElementById('navLinks');
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
     
     // Modal elements
     const confirmModal = document.getElementById('confirmModal');
@@ -293,6 +297,8 @@
     let packagesData = [];
     let currentInvoiceId = null;
     let unsubscribeInvoices = null;
+    let lastVisibleInvoice = null;
+    let isLoading = false;
     
     // Set default due date to 30 days from now
     function setDefaultDueDate() {
@@ -436,52 +442,49 @@
     }
     
     // Initialize invoice listeners
-    async function initializeInvoiceListeners() {
+    async function initializeInvoiceListeners(isFilterChange = false) {
+      if (isLoading) return;
+      isLoading = true;
+
+      if (isFilterChange) {
+        invoicesList.innerHTML = '<tr><td colspan="7" class="text-center">Loading invoices...</td></tr>';
+        lastVisibleInvoice = null;
+      }
+
+      const statusFilter = document.getElementById('statusFilter').value;
+      const monthFilter = document.getElementById('monthFilter').value;
+      const yearFilter = document.getElementById('yearFilter').value;
+
       try {
-        // Unsubscribe from previous listener if exists
-        if (unsubscribeInvoices) {
-          unsubscribeInvoices();
+        const { invoices, lastVisible } = await getInvoices(
+          { status: statusFilter, month: monthFilter, year: yearFilter },
+          lastVisibleInvoice
+        );
+
+        if (isFilterChange) {
+          invoicesList.innerHTML = '';
         }
         
-        // Set up real-time listener for invoices
-        const q = query(collection(db, "invoices"), orderBy("createdAt", "desc"));
-        unsubscribeInvoices = onSnapshot(q, (snapshot) => {
-          const invoices = new Map(); // Use Map to prevent duplicates by ID
-          
-          snapshot.forEach((doc) => {
-            const invoice = {
-              id: doc.id,
-              ...doc.data()
-            };
-            
-            // Only add if we haven't seen this ID before
-            if (!invoices.has(doc.id)) {
-              invoices.set(doc.id, invoice);
-              
-              // Check if invoice is overdue
-              if (invoice.status === 'Due' && invoice.dueDate) {
-                const dueDate = new Date(invoice.dueDate.seconds * 1000);
-                const today = new Date();
-                if (dueDate < today) {
-                  // Update status to overdue in the database
-                  updateDoc(doc.ref, { status: 'Overdue' });
-                  invoice.status = 'Overdue';
-                }
-              }
-            }
-          });
-          
-          // Convert Map to Array and render
-          renderInvoicesList(Array.from(invoices.values()));
-        });
+        if (invoices.length > 0) {
+          renderInvoices(invoices);
+          lastVisibleInvoice = lastVisible;
+          loadMoreBtn.style.display = 'block';
+        } else {
+          if (isFilterChange) {
+            invoicesList.innerHTML = '<tr><td colspan="7" class="text-center">No invoices found.</td></tr>';
+          }
+          loadMoreBtn.style.display = 'none';
+        }
       } catch (error) {
-        console.error("Error initializing invoice listeners:", error);
-        showAlert("Error", "Failed to load invoices: " + error.message);
+        console.error('Error fetching invoices:', error);
+        invoicesList.innerHTML = '<tr><td colspan="7" class="text-center">Error loading invoices.</td></tr>';
+      } finally {
+        isLoading = false;
       }
     }
     
     // Render invoices list
-    function renderInvoicesList(invoices) {
+    function renderInvoices(invoices) {
       // Clear existing invoices first
       invoicesList.innerHTML = '';
       
@@ -688,7 +691,7 @@
         setDefaultDueDate();
         
         // Refresh the invoices list
-        initializeInvoiceListeners();
+        initializeInvoiceListeners(true);
       } catch (error) {
         console.error("Error saving invoice:", error);
         showAlert("Error", "Failed to save invoice: " + error.message);
@@ -1239,7 +1242,7 @@
             });
             showAlert('Success', `Late fee of ₨${lateFee} added. New total: ₨${newAmount}`);
             confirmModal.classList.remove('show');
-            initializeInvoiceListeners();
+            initializeInvoiceListeners(true);
           }
         };
         
@@ -1255,7 +1258,7 @@
             });
             showAlert('Success', `Invoice marked as paid with late fee of ₨${lateFee}. Total paid: ₨${newAmount}`);
             confirmModal.classList.remove('show');
-            initializeInvoiceListeners();
+            initializeInvoiceListeners(true);
           }
         };
         
@@ -1266,7 +1269,7 @@
             });
             showAlert('Warning', 'Invoice marked as defaulted');
             confirmModal.classList.remove('show');
-            initializeInvoiceListeners();
+            initializeInvoiceListeners(true);
           }
         };
         
@@ -1325,15 +1328,16 @@
         
         if (sendNotification) {
           console.log('Attempting to send paid notification and image via WhatsApp...');
-          // Send the PAID notification with the new function
-          await sendPaidInvoiceNotification(user, updatedInvoice);
-          // Then send the invoice with PAID stamp
-          await sendInvoicePdf(user, updatedInvoice, imageBlob);
-          console.log('WhatsApp notifications sent');
+          // Prepare the caption for the image
+          const caption = `*💰 PAYMENT CONFIRMATION*\n━━━━━━━━━━━━━━━━━━━━━\n\nDear *${user.name}*,\n\nWe have received your payment of *${formatAmount(updatedInvoice.amount)}* for invoice *#${formattedId}*.\n\nThank you for your business! 🌟\n\nWeCloud Internet Services`;
+          
+          // Send the invoice with PAID stamp and the confirmation message as caption
+          await sendInvoicePdf(user, updatedInvoice, imageBlob, caption);
+          console.log('WhatsApp notification with paid invoice sent');
         }
 
         showAlert('Success', `Invoice #${formattedId} - Marked as Paid!` + (sendNotification ? ' WhatsApp notification and paid invoice sent.' : ''));
-        initializeInvoiceListeners();
+        initializeInvoiceListeners(true);
       } catch (error) {
         console.error('Error marking invoice as paid:', error);
         showAlert('Error', 'Failed to mark invoice as paid: ' + error.message);
@@ -1343,7 +1347,7 @@
     // Handle filter button click
     function handleFilter() {
       // Re-render invoices with current filter
-      initializeInvoiceListeners();
+      initializeInvoiceListeners(true);
     }
     
     // Show alert modal
@@ -1371,7 +1375,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       loadUsers();
       loadPackages();
-      initializeInvoiceListeners();
+      initializeInvoiceListeners(true);
       setDefaultDueDate();
     });
     
@@ -1386,6 +1390,7 @@
     packageSelect.addEventListener('change', handlePackageChange);
     cancelBtn.addEventListener('click', cancelEdit);
     filterBtn.addEventListener('click', handleFilter);
+    loadMoreBtn.addEventListener('click', () => initializeInvoiceListeners(false));
     generateAllInvoicesBtn.addEventListener('click', generateAllInvoices);
     sendAllRemindersBtn.addEventListener('click', sendPaymentReminders);
     broadcastAlertBtn.addEventListener('click', openBroadcastDialog);

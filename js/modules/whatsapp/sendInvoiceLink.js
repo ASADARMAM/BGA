@@ -2,6 +2,7 @@
 import { sendWhatsAppMessage } from '../../whatsapp.js';
 import { getInvoiceById } from '../invoices/getInvoice.js';
 import { getUserById } from '../../users.js';
+import { db, doc, getDoc, setDoc } from '../../firebaseConfig.js';
 
 // Replace with your GitHub Pages URL
 const INVOICE_BASE_URL = "https://asadarmam.github.io/wecloud-invoices/view.html?id=";
@@ -13,6 +14,18 @@ const INVOICE_BASE_URL = "https://asadarmam.github.io/wecloud-invoices/view.html
  */
 export async function sendInvoiceLink(invoiceId) {
   try {
+    // Prevent duplicate notifications
+    const notificationLogRef = doc(db, 'notification_logs', `invoice_${invoiceId}`);
+    const notificationLogSnap = await getDoc(notificationLogRef);
+
+    if (notificationLogSnap.exists()) {
+      console.log(`Notification for invoice ${invoiceId} already sent. Skipping.`);
+      return {
+        success: false,
+        message: `Notification for invoice ${invoiceId} has already been sent.`
+      };
+    }
+
     // Get invoice data
     const invoice = await getInvoiceById(invoiceId);
     if (!invoice) {
@@ -59,6 +72,14 @@ Thank you for choosing WeCloud Internet Services! 🌟`;
     
     // Send the message via WhatsApp only once
     const result = await sendWhatsAppMessage(user.phone, message);
+    
+    // Log that the notification has been sent
+    if (result.success) {
+      await setDoc(notificationLogRef, {
+        sentAt: new Date(),
+        type: 'invoice_notification'
+      });
+    }
     
     return {
       success: true,

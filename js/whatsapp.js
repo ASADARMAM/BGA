@@ -937,129 +937,45 @@ function showServerError() {
 }
 
 // Send invoice PDF
-async function sendInvoicePdf(user, invoice, pdfBlob) {
+async function sendInvoicePdf(user, invoice, imageBlob, caption) {
     try {
-        // Format the date properly with fallbacks
-        const formatInvoiceDate = (dateValue) => {
-            if (!dateValue) {
-                const now = new Date();
-                return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            }
-            
-            try {
-                let dateObj;
-                if (typeof dateValue === 'object' && dateValue.seconds) {
-                    dateObj = new Date(dateValue.seconds * 1000);
-                } else if (dateValue instanceof Date) {
-                    dateObj = dateValue;
-                } else if (typeof dateValue === 'string') {
-                    dateObj = new Date(dateValue);
-                } else if (typeof dateValue === 'number') {
-                    dateObj = new Date(dateValue);
-                } else {
-                    dateObj = new Date();
-                }
-                
-                if (isNaN(dateObj.getTime())) {
-                    dateObj = new Date();
-                }
-                
-                return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
-            } catch (e) {
-                console.error('Error formatting date:', e);
-                const now = new Date();
-                return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            }
-        };
-
-        // Get the invoice link from the GitHub Pages site
-        const directInvoiceLink = generateInvoiceLink(invoice.id);
-
-        // Prepare the well-formatted message
-        const message = `*📋 INVOICE NOTIFICATION*
-━━━━━━━━━━━━━━━━━━━━━
-
-Dear *${user.name}*,
-
-Your invoice has been generated.
-
-*📊 INVOICE DETAILS*
-━━━━━━━━━━━━
-• *Invoice ID:* ${invoice.formattedId || invoice.id}
-• *Amount:* ${formatAmount(invoice.amount)}
-• *Status:* ${invoice.status || 'Generated'}
-• *Package:* ${invoice.packageName || 'Internet Service'}
-
-*📅 DATES*
-━━━━━━
-• *Issue Date:* ${formatInvoiceDate(invoice.createdAt || invoice.date)}
-• *Due Date:* ${formatInvoiceDate(invoice.dueDate)}
-
-*🔗 VIEW INVOICE ONLINE*
-━━━━━━━━━━━━━━━━
-Click here to view your invoice: 
-${directInvoiceLink}
-
-Please ensure payment before the due date to avoid service interruption.
-
-For any questions, please contact our support team.
-
-Thank you for choosing WeCloud Internet Services! 🌟`;
-
-        // First try to send the actual PDF file
-        console.log("Attempting to send invoice PDF directly via WhatsApp...");
-        
-        // Prepare the PDF file for sending
-        const pdfData = {
-            mimetype: 'application/pdf',
-            data: pdfBlob,
-            filename: `${invoice.formattedId || invoice.id}.pdf`
-        };
-        
-        // Try to send the file with the formatted message as caption
-        const result = await sendWithRetry(() => sendMessage(user.phone, message, { 
-            media: pdfData 
-        }));
-        
-        if (result.success) {
-            console.log("PDF sent successfully via WhatsApp");
-            return result;
+        if (!imageBlob) {
+            console.error("No image blob provided to sendInvoicePdf.");
+            return;
         }
-        
-        // If sending PDF fails, just send the message
-        if (result.isPlusFeature || (result.error && (
-            result.error.includes("Plus version") || 
-            result.error.includes("premium") ||
-            result.error.includes("paid version")
-        ))) {
-            console.log('Sending text-only message due to WAHA free version limitation');
-            return await sendWithRetry(() => sendMessage(user.phone, message));
+
+        // Convert blob to base64
+        const reader = new FileReader();
+        reader.readAsDataURL(imageBlob);
+        await new Promise(resolve => reader.onload = resolve);
+        const base64Image = reader.result;
+
+        console.log("Attempting to send invoice image via WhatsApp...");
+
+        const response = await fetch(`${WAHA_CONFIG.baseUrl}/files`, {
+            method: 'POST',
+            headers: WAHA_CONFIG.headers,
+            body: JSON.stringify({
+                chatId: `${user.phone}@c.us`,
+                file: base64Image,
+                fileName: `invoice-${invoice.formattedId}.png`,
+                caption: caption, // Send message as caption
+            })
+        });
+
+        if (response.ok) {
+            console.log('Invoice image sent successfully');
         } else {
-            throw new Error(result.error || "Failed to send invoice");
+            const errorData = await response.json();
+            console.error('Failed to send invoice image:', response.status, errorData);
+            // Fallback to sending a text link if image fails
+            console.log("Falling back to sending invoice link as text.");
+            const invoiceLink = generateInvoiceLink(invoice.id);
+            const fallbackMessage = `Your paid invoice is ready. View it here: ${invoiceLink}`;
+            await sendMessage(user.phone, fallbackMessage);
         }
     } catch (error) {
-        console.error('Error sending invoice:', error);
-        
-        // Send a simplified version of the message in case of errors
-        const simpleMessage = `*📋 INVOICE NOTIFICATION*
-━━━━━━━━━━━━━━━━━━━━━
-
-Dear *${user.name}*,
-
-Your invoice has been generated.
-
-*📊 INVOICE DETAILS*
-━━━━━━━━━━━━
-• *Invoice ID:* ${invoice.formattedId || invoice.id}
-• *Amount:* ${formatAmount(invoice.amount)}
-• *Due Date:* ${formatInvoiceDate(invoice.dueDate)}
-
-Click here to view your invoice: 
-${baseUrl}/invoice/${invoice.id}
-
-Thank you for choosing WeCloud Internet Services! 🌟`;
-
-        return await sendWithRetry(() => sendMessage(user.phone, simpleMessage));
+        console.error('Error in sendInvoicePdf:', error);
     }
 }
 
