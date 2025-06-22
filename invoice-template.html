@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice Template - WeCloud</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .invoice-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 40px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      position: relative;
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .logo img {
+      width: 120px;
+      margin-bottom: 10px;
+    }
+    .logo h1 {
+      margin: 0;
+      color: #1a237e;
+      font-size: 24px;
+    }
+    .info-section {
+      margin-bottom: 20px;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 20px;
+    }
+    .info-table {
+      width: 100%;
+    }
+    .info-table td {
+      padding: 5px;
+    }
+    .info-table td:last-child {
+      text-align: right;
+    }
+    .package-table, .amount-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .package-table th, .package-table td,
+    .amount-table th, .amount-table td {
+      border: 1px solid #000;
+      padding: 10px;
+    }
+    .package-table th, .amount-table th {
+      background: #f5f5f5;
+    }
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+      border-top: 2px solid #eee;
+      padding-top: 20px;
+    }
+    .paid-stamp {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      border: 5px solid #4CAF50;
+      color: #4CAF50;
+      padding: 10px 40px;
+      font-size: 48px;
+      font-weight: bold;
+      text-transform: uppercase;
+      opacity: 0.8;
+    }
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      .invoice-container {
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-container">
+    <div class="logo">
+      <img src="/assets/logo.png" alt="WeCloud Logo">
+      <h1>WeCloud Internet Services</h1>
+    </div>
+
+    <div class="info-section">
+      <table class="info-table">
+        <tr>
+          <td><strong>Invoice ID:</strong> {{invoiceId}}</td>
+          <td><strong>Date:</strong> {{createdDate}}</td>
+        </tr>
+        <tr>
+          <td><strong>Customer:</strong> {{customerName}}</td>
+          <td><strong>Phone:</strong> {{customerPhone}}</td>
+        </tr>
+        <tr>
+          <td><strong>Status:</strong> {{status}}</td>
+          <td><strong>Due Date:</strong> {{dueDate}}</td>
+        </tr>
+      </table>
+    </div>
+
+    <table class="package-table">
+      <tr>
+        <th>Package</th>
+        <th>Speed</th>
+        <th>Monthly Fee</th>
+      </tr>
+      <tr>
+        <td>{{packageName}}</td>
+        <td>{{packageSpeed}}</td>
+        <td>₨{{packagePrice}}</td>
+      </tr>
+    </table>
+
+    <table class="amount-table">
+      <tr>
+        <th>Description</th>
+        <th>Amount (₨)</th>
+      </tr>
+      <tr>
+        <td>Internet Service ({{packageName}})</td>
+        <td>₨{{amount}}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold;">Total</td>
+        <td style="font-weight: bold;">₨{{amount}}</td>
+      </tr>
+    </table>
+
+    {{paidStamp}}
+
+    <div class="footer">
+      Thank you for your business!<br>
+      For support, contact us at info@wecloud.com or +92-XXX-XXXXXXX
+    </div>
+    
+   
+</body>
+</html> 

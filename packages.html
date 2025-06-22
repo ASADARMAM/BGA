@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeCloud Internet Services - Packages</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <img src="assets/logo.svg" alt="WeCloud Logo">
+        <span class="logo-text">WeCloud</span>
+      </div>
+      
+      <div class="menu-toggle" id="menuToggle">
+        <i class="fas fa-bars"></i>
+      </div>
+      
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="users.html">Users</a></li>
+        <li><a href="packages.html" class="active">Packages</a></li>
+        <li><a href="invoices.html">Invoices</a></li>
+        <li><a href="messages.html">Messages</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <div class="main-content">
+      <h1 class="mb-3">Packages Management</h1>
+      
+      <!-- Add Package Form -->
+      <div class="form-container" id="packageForm">
+        <h2 class="form-title">Add New Package</h2>
+        
+        <form id="addPackageForm">
+          <div class="form-row">
+            <div class="form-col">
+              <div class="form-group">
+                <label for="packageName" class="form-label">Package Name</label>
+                <input type="text" id="packageName" class="form-control" placeholder="Enter package name" required>
+              </div>
+            </div>
+            
+            <div class="form-col">
+              <div class="form-group">
+                <label for="packageSpeed" class="form-label">Speed</label>
+                <input type="text" id="packageSpeed" class="form-control" placeholder="e.g., 10 Mbps" required>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-col">
+              <div class="form-group">
+                <label for="packagePrice" class="form-label">Price</label>
+                <input type="number" id="packagePrice" class="form-control" placeholder="Enter price in ₨" required>
+              </div>
+            </div>
+            
+            <div class="form-col">
+              <div class="form-group">
+                <label for="packageValidity" class="form-label">Validity (days)</label>
+                <input type="number" id="packageValidity" class="form-control" placeholder="Enter validity in days" min="1" value="30" required>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="packageDescription" class="form-label">Description</label>
+            <textarea id="packageDescription" class="form-control" placeholder="Enter package description"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <button type="submit" id="savePackageBtn" class="btn btn-primary">
+              <i class="fas fa-save"></i> Save Package
+            </button>
+            <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">
+              Cancel Edit
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Packages List -->
+      <div class="table-container">
+        <div class="card-header">
+          <h2 class="card-title">Packages List</h2>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Speed</th>
+              <th>Price</th>
+              <th>Validity</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="packagesList">
+            <!-- Packages will be loaded here -->
+            <tr>
+              <td colspan="5" class="text-center">Loading packages...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+      <p>&copy; 2023 WeCloud Internet Services. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="confirmTitle">Confirm</h3>
+        <button class="modal-close" id="confirmClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="confirmCancel">Cancel</button>
+        <button class="btn btn-danger" id="confirmOk">Delete</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Alert Modal -->
+  <div class="modal-backdrop" id="alertModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="alertTitle">Alert</h3>
+        <button class="modal-close" id="alertClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="alertMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="alertOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    // Import Firebase modules
+    import { db, collection, getDocs, query, where } from './js/firebaseConfig.js';
+    import { addPackage, updatePackage, deletePackage, listenToPackages } from './js/packages.js';
+    
+    // DOM Elements
+    const packageForm = document.getElementById('addPackageForm');
+    const nameInput = document.getElementById('packageName');
+    const speedInput = document.getElementById('packageSpeed');
+    const priceInput = document.getElementById('packagePrice');
+    const validityInput = document.getElementById('packageValidity');
+    const descriptionInput = document.getElementById('packageDescription');
+    const saveBtn = document.getElementById('savePackageBtn');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const packagesList = document.getElementById('packagesList');
+    const menuToggle = document.getElementById('menuToggle');
+    const navLinks = document.getElementById('navLinks');
+    
+    // Modal elements
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmTitle = document.getElementById('confirmTitle');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmOk = document.getElementById('confirmOk');
+    const confirmCancel = document.getElementById('confirmCancel');
+    const confirmClose = document.getElementById('confirmClose');
+    
+    const alertModal = document.getElementById('alertModal');
+    const alertTitle = document.getElementById('alertTitle');
+    const alertMessage = document.getElementById('alertMessage');
+    const alertOk = document.getElementById('alertOk');
+    const alertClose = document.getElementById('alertClose');
+    
+    // Global variables
+    let currentPackageId = null;
+    let unsubscribePackages = null;
+    
+    // Initialize package listeners
+    function initializePackageListeners() {
+      // Unsubscribe from previous listener if exists
+      if (unsubscribePackages) {
+        unsubscribePackages();
+      }
+      
+      // Set up real-time listener for packages
+      unsubscribePackages = listenToPackages(renderPackages);
+    }
+    
+    // Render packages in the table
+    function renderPackages(packages) {
+      if (packages.length === 0) {
+        packagesList.innerHTML = '<tr><td colspan="5" class="text-center">No packages found</td></tr>';
+        return;
+      }
+      
+      // Clear the table
+      packagesList.innerHTML = '';
+      
+      // Sort packages by price
+      packages.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+      
+      // Add each package to the table
+      packages.forEach(pkg => {
+        const row = document.createElement('tr');
+        
+        row.innerHTML = `
+          <td>${pkg.name}</td>
+          <td>${pkg.speed || '-'}</td>
+          <td>₨${parseFloat(pkg.price).toFixed(2)}</td>
+          <td>${pkg.validity} days</td>
+          <td>
+            <button class="btn btn-sm btn-outline edit-btn" data-id="${pkg.id}">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-danger delete-btn" data-id="${pkg.id}">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        
+        packagesList.appendChild(row);
+        
+        // Add event listeners to buttons
+        row.querySelector('.edit-btn').addEventListener('click', () => editPackage(pkg));
+        row.querySelector('.delete-btn').addEventListener('click', () => confirmDeletePackage(pkg));
+      });
+    }
+    
+    // Handle form submission
+    async function handleFormSubmit(event) {
+      event.preventDefault();
+      
+      try {
+        // Get form values
+        const packageData = {
+          name: nameInput.value.trim(),
+          speed: speedInput.value.trim(),
+          price: parseFloat(priceInput.value).toFixed(2),
+          validity: parseInt(validityInput.value),
+          description: descriptionInput.value.trim() || null
+        };
+        
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        
+        if (currentPackageId) {
+          // Update existing package
+          await updatePackage(currentPackageId, packageData);
+          showAlert("Success", "Package updated successfully!");
+        } else {
+          // Add new package
+          await addPackage(packageData);
+          showAlert("Success", "Package added successfully!");
+        }
+        
+        // Reset form
+        packageForm.reset();
+        currentPackageId = null;
+        saveBtn.textContent = 'Save Package';
+        cancelBtn.style.display = 'none';
+      } catch (error) {
+        console.error("Error saving package:", error);
+        showAlert("Error", "Failed to save package: " + error.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Package';
+      }
+    }
+    
+    // Edit package
+    function editPackage(pkg) {
+      // Set form values
+      nameInput.value = pkg.name || '';
+      speedInput.value = pkg.speed || '';
+      priceInput.value = pkg.price || '';
+      validityInput.value = pkg.validity || 30;
+      descriptionInput.value = pkg.description || '';
+      
+      // Update form state
+      currentPackageId = pkg.id;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> Update Package';
+      cancelBtn.style.display = 'inline-block';
+      
+      // Scroll to form
+      packageForm.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    // Cancel edit
+    function cancelEdit() {
+      packageForm.reset();
+      currentPackageId = null;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Package';
+      cancelBtn.style.display = 'none';
+    }
+    
+    // Check if package is in use
+    async function isPackageInUse(packageId) {
+      try {
+        // Check if any user is using this package
+        const usersCollection = collection(db, "users");
+        const usersQuery = query(usersCollection, where("packageId", "==", packageId));
+        const usersSnapshot = await getDocs(usersQuery);
+        
+        if (!usersSnapshot.empty) {
+          return true;
+        }
+        
+        // Check if any invoice is using this package
+        const invoicesCollection = collection(db, "invoices");
+        const invoicesQuery = query(invoicesCollection, where("packageId", "==", packageId));
+        const invoicesSnapshot = await getDocs(invoicesQuery);
+        
+        return !invoicesSnapshot.empty;
+      } catch (error) {
+        console.error("Error checking if package is in use:", error);
+        return false;
+      }
+    }
+    
+    // Confirm delete package
+    async function confirmDeletePackage(pkg) {
+      // First check if package is in use
+      const inUse = await isPackageInUse(pkg.id);
+      
+      if (inUse) {
+        showAlert("Cannot Delete", "This package is currently assigned to users or invoices. Please remove those associations first.");
+        return;
+      }
+      
+      confirmTitle.textContent = 'Delete Package';
+      confirmMessage.textContent = `Are you sure you want to delete package "${pkg.name}"? This action cannot be undone.`;
+      
+      // Show modal
+      confirmModal.classList.add('show');
+      
+      // Set up confirm button
+      confirmOk.onclick = async () => {
+        try {
+          confirmOk.disabled = true;
+          confirmOk.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+          
+          await deletePackage(pkg.id);
+          
+          // Close modal
+          confirmModal.classList.remove('show');
+          
+          showAlert("Success", "Package deleted successfully!");
+        } catch (error) {
+          console.error("Error deleting package:", error);
+          showAlert("Error", "Failed to delete package: " + error.message);
+          confirmModal.classList.remove('show');
+        }
+      };
+    }
+    
+    // Show alert modal
+    function showAlert(title, message) {
+      alertTitle.textContent = title;
+      alertMessage.textContent = message;
+      alertModal.classList.add('show');
+    }
+    
+    // Close modals
+    function closeConfirmModal() {
+      confirmModal.classList.remove('show');
+    }
+    
+    function closeAlertModal() {
+      alertModal.classList.remove('show');
+    }
+    
+    // Toggle mobile menu
+    function toggleMenu() {
+      navLinks.classList.toggle('active');
+    }
+    
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', initializePackageListeners);
+    packageForm.addEventListener('submit', handleFormSubmit);
+    cancelBtn.addEventListener('click', cancelEdit);
+    confirmCancel.addEventListener('click', closeConfirmModal);
+    confirmClose.addEventListener('click', closeConfirmModal);
+    alertOk.addEventListener('click', closeAlertModal);
+    alertClose.addEventListener('click', closeAlertModal);
+    menuToggle.addEventListener('click', toggleMenu);
+  </script>
+</body>
+</html> 

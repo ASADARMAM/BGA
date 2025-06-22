@@ -1,0 +1,23 @@
+# Node modules
+node_modules/
+
+# Session files
+session.json
+qr*.json
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Batch files (optional, remove if you want to include them)
+# *.bat 

@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeCloud Internet Services - Message Templates</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* WhatsApp session status styles */
+    #sessionStatus {
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+    
+    .status-connected {
+      background-color: #e8f5e9;
+      color: #2e7d32;
+      border-left: 4px solid #4caf50;
+    }
+    
+    .status-starting {
+      background-color: #e3f2fd;
+      color: #1565c0;
+      border-left: 4px solid #2196f3;
+    }
+    
+    .status-qr {
+      background-color: #fff8e1;
+      color: #ff8f00;
+      border-left: 4px solid #ffc107;
+    }
+    
+    .status-failed {
+      background-color: #ffebee;
+      color: #c62828;
+      border-left: 4px solid #f44336;
+    }
+    
+    .status-offline {
+      background-color: #fafafa;
+      color: #616161;
+      border-left: 4px solid #9e9e9e;
+    }
+    
+    .status-error {
+      background-color: #ffebee;
+      color: #c62828;
+      border-left: 4px solid #f44336;
+    }
+    
+    .status-unknown {
+      background-color: #f3e5f5;
+      color: #6a1b9a;
+      border-left: 4px solid #9c27b0;
+    }
+    
+    /* Authenticate button */
+    .authenticate-btn {
+      background-color: #4CAF50;
+      color: white;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <img src="assets/logo.svg" alt="WeCloud Logo">
+        <span class="logo-text">WeCloud</span>
+      </div>
+      
+      <div class="menu-toggle" id="menuToggle">
+        <i class="fas fa-bars"></i>
+      </div>
+      
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="users.html">Users</a></li>
+        <li><a href="packages.html">Packages</a></li>
+        <li><a href="invoices.html">Invoices</a></li>
+        <li><a href="messages.html" class="active">Messages</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <div class="main-content">
+      <h1 class="mb-3">Message Templates & Broadcasts</h1>
+      
+      <!-- Broadcast Alert Section -->
+      <div class="form-container">
+        <h2 class="form-title">Send Broadcast Alert</h2>
+        <p>Send an important notification to all users with active phone numbers.</p>
+        
+        <form id="broadcastForm">
+          <div class="form-group">
+            <label for="broadcastMessage" class="form-label">Alert Message</label>
+            <textarea id="broadcastMessage" class="form-control" rows="5" placeholder="e.g., Internet service will be temporarily unavailable on June 15th from 2-4 PM for scheduled maintenance." required></textarea>
+          </div>
+          
+          <div class="form-group">
+            <button type="submit" id="sendBroadcastBtn" class="btn btn-primary">
+              <i class="fas fa-bullhorn"></i> Send to All Users
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- WhatsApp Test Section -->
+      <div class="form-container">
+        <h2 class="form-title">Test WhatsApp Connection</h2>
+        
+        <form id="testWhatsAppForm">
+          <div class="form-row">
+            <div class="form-col">
+              <div class="form-group">
+                <label for="testWhatsAppPhone" class="form-label">Phone Number</label>
+                <input type="tel" id="testWhatsAppPhone" class="form-control" placeholder="e.g., 923001234567" required>
+              </div>
+            </div>
+            
+            <div class="form-col">
+              <div class="form-group">
+                <button type="submit" id="testWhatsAppBtn" class="btn btn-primary">
+                  <i class="fas fa-vial"></i> Test Connection
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      <!-- WhatsApp Authentication Section -->
+      <section class="whatsapp-auth-section" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #dee2e6;">
+        <h3>WhatsApp Connection</h3>
+        <p>To use WhatsApp messaging functionality:</p>
+        <ol>
+          <li>Start the WAHA server on your PC</li>
+          <li>When sending your first message, you'll be prompted to scan a QR code</li>
+          <li>Open WhatsApp on your phone</li>
+          <li>Go to Settings > Linked Devices > Link a Device</li>
+          <li>Scan the QR code when it appears</li>
+          <li>Wait for the authentication to complete</li>
+        </ol>
+        <p><strong>Note:</strong> You'll need to scan the QR code only once. The session will remain active until you log out or restart the server.</p>
+        
+        <div style="margin-top: 15px; padding: 10px; background-color: #fff8e1; border-radius: 4px; border-left: 4px solid #ffc107;">
+          <p><i class="fas fa-info-circle"></i> <strong>Important:</strong> The free version of WAHA does not support sending PDF files directly via WhatsApp.</p>
+          <p>For more information about WhatsApp integration limitations and solutions, please see the <a href="whatsapp-info.html" style="color: #0d6efd; text-decoration: underline;">WhatsApp Integration Guide</a>.</p>
+        </div>
+        
+        <!-- Session Management -->
+        <div class="session-management" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+          <h4>Session Management</h4>
+          <p>If you're having trouble with WhatsApp messages, you can try restarting the session:</p>
+          <div class="form-row">
+            <button id="checkSessionBtn" class="btn btn-outline" style="margin-right: 10px;">
+              <i class="fas fa-sync"></i> Check Status
+            </button>
+            <button id="restartSessionBtn" class="btn btn-warning">
+              <i class="fas fa-power-off"></i> Restart WhatsApp Session
+            </button>
+            <button id="authenticateBtn" class="btn btn-primary" style="margin-left: 10px;">
+              <i class="fas fa-qrcode"></i> Authenticate Now
+            </button>
+            <button id="directQrBtn" class="btn btn-info" style="margin-left: 10px;">
+              <i class="fas fa-external-link-alt"></i> Get QR Directly
+            </button>
+          </div>
+          <div id="sessionStatus" style="margin-top: 10px; padding: 8px; border-radius: 4px; display: none;"></div>
+        </div>
+      </section>
+      
+      <!-- Message Templates Form -->
+      <div class="form-container">
+        <h2 class="form-title">Message Templates</h2>
+        <p>Customize the message templates used for WhatsApp notifications. Use the following placeholders:</p>
+        <ul class="mb-3">
+          <li><code>{userName}</code> - Customer's name</li>
+          <li><code>{userPhone}</code> - Customer's phone number</li>
+          <li><code>{invoiceId}</code> - Invoice ID</li>
+          <li><code>{packageName}</code> - Package name</li>
+          <li><code>{packageSpeed}</code> - Package speed</li>
+          <li><code>{packagePrice}</code> - Package price</li>
+          <li><code>{invoiceAmount}</code> - Invoice amount</li>
+          <li><code>{dueDate}</code> - Due date</li>
+          <li><code>{invoiceMonth}</code> - Invoice month (e.g., January)</li>
+          <li><code>{invoiceYear}</code> - Invoice year (e.g., 2023)</li>
+          <li><code>{alertMessage}</code> - Custom alert message for broadcasts</li>
+        </ul>
+        
+        <form id="messageTemplatesForm">
+          <div class="form-group">
+            <label for="invoiceTemplate" class="form-label">Invoice Notification Template</label>
+            <textarea id="invoiceTemplate" class="form-control" rows="10" required></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="paidInvoiceTemplate" class="form-label">Paid Invoice Notification Template</label>
+            <textarea id="paidInvoiceTemplate" class="form-control" rows="10" required></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="overdueTemplate" class="form-label">Overdue Payment Reminder Template</label>
+            <textarea id="overdueTemplate" class="form-control" rows="10" required></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="broadcastTemplate" class="form-label">Broadcast Alert Template</label>
+            <textarea id="broadcastTemplate" class="form-control" rows="10" required></textarea>
+          </div>
+          
+          <div class="form-group">
+            <button type="submit" id="saveTemplatesBtn" class="btn btn-primary">
+              <i class="fas fa-save"></i> Save Templates
+            </button>
+            <button type="button" id="resetTemplatesBtn" class="btn btn-outline">
+              Reset to Default
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+      <p>&copy; 2023 WeCloud Internet Services. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <!-- Alert Modal -->
+  <div class="modal-backdrop" id="alertModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="alertTitle">Alert</h3>
+        <button class="modal-close" id="alertClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="alertMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="alertOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    import { sendWhatsAppAlert, testWhatsAppConnection, serverStatus, authenticateWithQR, showSwaggerQRInstructions } from './js/whatsapp.js';
+    import { getUsers } from './js/users.js';
+    import { sendBroadcastAlert } from './js/whatsapp.js';
+    
+    // DOM Elements
+    const messageForm = document.getElementById('messageTemplatesForm');
+    const invoiceTemplate = document.getElementById('invoiceTemplate');
+    const paidInvoiceTemplate = document.getElementById('paidInvoiceTemplate');
+    const overdueTemplate = document.getElementById('overdueTemplate');
+    const broadcastTemplate = document.getElementById('broadcastTemplate');
+    const resetBtn = document.getElementById('resetTemplatesBtn');
+    const menuToggle = document.getElementById('menuToggle');
+    const navLinks = document.getElementById('navLinks');
+    
+    // Broadcast form elements
+    const broadcastForm = document.getElementById('broadcastForm');
+    const broadcastMessage = document.getElementById('broadcastMessage');
+    const sendBroadcastBtn = document.getElementById('sendBroadcastBtn');
+    
+    // WhatsApp test elements
+    const testWhatsAppForm = document.getElementById('testWhatsAppForm');
+    const testWhatsAppPhone = document.getElementById('testWhatsAppPhone');
+    const testWhatsAppBtn = document.getElementById('testWhatsAppBtn');
+    
+    // Session management elements
+    const checkSessionBtn = document.getElementById('checkSessionBtn');
+    const restartSessionBtn = document.getElementById('restartSessionBtn');
+    const authenticateBtn = document.getElementById('authenticateBtn');
+    const directQrBtn = document.getElementById('directQrBtn');
+    const sessionStatusDiv = document.getElementById('sessionStatus');
+    
+    // Modal elements
+    const alertModal = document.getElementById('alertModal');
+    const alertTitle = document.getElementById('alertTitle');
+    const alertMessage = document.getElementById('alertMessage');
+    const alertOk = document.getElementById('alertOk');
+    const alertClose = document.getElementById('alertClose');
+    
+    // Default templates
+    const defaultTemplates = {
+      invoice: `Dear {userName},
+
+Your WeCloud Internet Services invoice #{invoiceId} has been generated for {invoiceMonth} {invoiceYear}.
+
+Package: {packageName}
+Amount: ₨{amount}
+Due Date: {dueDate}
+
+Please make your payment before the due date to avoid service interruption.
+
+Thank you,
+WeCloud Internet Services`,
+      
+      overdue: `URGENT REMINDER: Dear {userName},
+
+Your WeCloud Internet Services invoice #{invoiceId} for {invoiceMonth} {invoiceYear} is OVERDUE.
+The payment was due on {dueDate}.
+
+Package: {packageName}
+Amount: ₨{amount}
+
+Please make your payment IMMEDIATELY to avoid service disconnection.
+
+Thank you,
+WeCloud Internet Services`,
+      
+      broadcast: `IMPORTANT NOTICE: Dear {userName},
+
+{alertMessage}
+
+Thank you for your understanding.
+WeCloud Internet Services`,
+      
+      paidInvoice: `*PAYMENT CONFIRMATION*
+
+Dear {userName},
+
+We have received your payment of {amount} for invoice #{invoiceId}.
+
+*Payment Details:*
+- Amount: {amount}
+- Date: {paymentDate}
+- Status: Paid
+
+Thank you for your prompt payment!
+
+WeCloud Internet Services`
+    };
+    
+    // Load templates from localStorage or use defaults
+    function loadTemplates() {
+      invoiceTemplate.value = localStorage.getItem('invoiceTemplate') || defaultTemplates.invoice;
+      paidInvoiceTemplate.value = localStorage.getItem('paidInvoiceTemplate') || defaultTemplates.paidInvoice;
+      overdueTemplate.value = localStorage.getItem('overdueTemplate') || defaultTemplates.overdue;
+      broadcastTemplate.value = localStorage.getItem('broadcastTemplate') || defaultTemplates.broadcast;
+    }
+    
+    // Save templates to localStorage
+    function saveTemplates(event) {
+      event.preventDefault();
+      
+      localStorage.setItem('invoiceTemplate', invoiceTemplate.value);
+      localStorage.setItem('paidInvoiceTemplate', paidInvoiceTemplate.value);
+      localStorage.setItem('overdueTemplate', overdueTemplate.value);
+      localStorage.setItem('broadcastTemplate', broadcastTemplate.value);
+      
+      showAlert('Success', 'Message templates saved successfully!');
+    }
+    
+    // Reset templates to default
+    function resetTemplates() {
+      invoiceTemplate.value = defaultTemplates.invoice;
+      paidInvoiceTemplate.value = defaultTemplates.paidInvoice;
+      overdueTemplate.value = defaultTemplates.overdue;
+      broadcastTemplate.value = defaultTemplates.broadcast;
+    }
+    
+    // Send broadcast alert to all users
+    async function handleBroadcast(event) {
+      event.preventDefault();
+      
+      try {
+        const message = broadcastMessage.value.trim();
+        
+        if (!message) {
+          showAlert('Error', 'Please enter an alert message.');
+          return;
+        }
+        
+        // Confirm before sending
+        if (!confirm('This will send a message to ALL users. Are you sure you want to proceed?')) {
+          return;
+        }
+        
+        // Disable button and show loading
+        sendBroadcastBtn.disabled = true;
+        sendBroadcastBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        
+        // Get all users
+        const users = await getUsers();
+        
+        if (users.length === 0) {
+          showAlert('Error', 'No users found in the system.');
+          return;
+        }
+        
+        // Send broadcast
+        const results = await sendBroadcastAlert(users, message);
+        
+        // Show results
+        showAlert(
+          'Broadcast Complete', 
+          `Successfully sent to ${results.sent} out of ${results.total} users.` +
+          (results.failed > 0 ? ` Failed: ${results.failed}` : '')
+        );
+        
+        // Clear message field
+        broadcastMessage.value = '';
+      } catch (error) {
+        console.error('Error sending broadcast:', error);
+        showAlert('Error', 'Failed to send broadcast: ' + error.message);
+      } finally {
+        sendBroadcastBtn.disabled = false;
+        sendBroadcastBtn.innerHTML = '<i class="fas fa-bullhorn"></i> Send to All Users';
+      }
+    }
+    
+    // WhatsApp test function
+    async function handleWhatsAppTest(e) {
+      e.preventDefault();
+      
+        const phone = testWhatsAppPhone.value.trim();
+      if (!phone) {
+        showAlert('Error', 'Please enter a valid phone number');
+          return;
+        }
+        
+        testWhatsAppBtn.disabled = true;
+        testWhatsAppBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+        
+      try {
+        const result = await testWhatsAppConnection();
+        
+        if (result.success) {
+          // If connection test passed, try sending a test message
+          const testResult = await sendWhatsAppAlert({ 
+            name: 'Test User', 
+            phone: phone 
+          }, 'This is a test message from WeCloud Internet Services.');
+          
+          if (testResult && testResult.success) {
+            showAlert('Success', 'WhatsApp connection test successful! Test message sent.');
+          } else {
+            showAlert('Warning', `Connection established but message failed: ${testResult?.error || 'Unknown error'}`);
+          }
+        } else {
+          showAlert('Error', result.message || 'WhatsApp connection test failed');
+        }
+      } catch (error) {
+        console.error('WhatsApp test error:', error);
+        showAlert('Error', `WhatsApp test failed: ${error.message}`);
+      } finally {
+        testWhatsAppBtn.disabled = false;
+        testWhatsAppBtn.innerHTML = '<i class="fas fa-vial"></i> Test Connection';
+      }
+    }
+    
+    // Show alert modal
+    function showAlert(title, message) {
+      alertTitle.textContent = title;
+      alertMessage.textContent = message;
+      alertModal.classList.add('show');
+    }
+    
+    // Close alert modal
+    function closeAlertModal() {
+      alertModal.classList.remove('show');
+    }
+    
+    // Toggle mobile menu
+    function toggleMenu() {
+      navLinks.classList.toggle('active');
+    }
+    
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTemplates();
+      
+      // Mobile menu toggle
+      menuToggle.addEventListener('click', () => {
+        navLinks.classList.toggle('active');
+      });
+      
+      // Form submissions
+    messageForm.addEventListener('submit', saveTemplates);
+    broadcastForm.addEventListener('submit', handleBroadcast);
+    testWhatsAppForm.addEventListener('submit', handleWhatsAppTest);
+      
+      // Other button events
+      resetBtn.addEventListener('click', resetTemplates);
+      document.getElementById('alertClose').addEventListener('click', closeAlertModal);
+      document.getElementById('alertOk').addEventListener('click', closeAlertModal);
+      
+      // Session management buttons
+      checkSessionBtn.addEventListener('click', checkSessionStatus);
+      restartSessionBtn.addEventListener('click', restartSession);
+      authenticateBtn.addEventListener('click', startAuthentication);
+      directQrBtn.addEventListener('click', showDirectQrInstructions);
+    });
+    
+    // Check WhatsApp session status
+    async function checkSessionStatus() {
+      checkSessionBtn.disabled = true;
+      checkSessionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+      
+      try {
+        // Try to check server status up to 3 times
+        let success = false;
+        let attempts = 0;
+        const maxAttempts = 3;
+        
+        while (!success && attempts < maxAttempts) {
+          attempts++;
+          console.log(`Checking server status, attempt ${attempts}/${maxAttempts}`);
+          
+          try {
+            success = await serverStatus.check();
+            if (success) break;
+            
+            // If not successful, wait before retrying
+            if (attempts < maxAttempts) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          } catch (retryError) {
+            console.warn(`Attempt ${attempts} failed:`, retryError);
+          }
+        }
+        
+        sessionStatusDiv.style.display = 'block';
+        
+        // If server is online according to serverStatus.isOnline
+        if (serverStatus.isOnline) {
+          let statusClass = 'status-unknown';
+          let statusIcon = 'question-circle';
+          
+          if (serverStatus.sessionStatus === 'CONNECTED' || serverStatus.sessionStatus === 'WORKING') {
+            statusClass = 'status-connected';
+            statusIcon = 'check-circle';
+          } else if (serverStatus.sessionStatus === 'SCAN_QR_CODE') {
+            statusClass = 'status-qr';
+            statusIcon = 'qrcode';
+          } else if (serverStatus.sessionStatus === 'STARTING') {
+            statusClass = 'status-starting';
+            statusIcon = 'hourglass-start';
+          } else if (serverStatus.sessionStatus === 'FAILED') {
+            statusClass = 'status-failed';
+            statusIcon = 'exclamation-triangle';
+          }
+          
+          sessionStatusDiv.className = statusClass;
+          sessionStatusDiv.innerHTML = `
+            <div style="display: flex; align-items: center;">
+              <i class="fas fa-${statusIcon}" style="margin-right: 10px;"></i>
+              <div>
+                <strong>Status:</strong> ${serverStatus.sessionStatus || 'UNKNOWN'}<br>
+                <small>${getStatusDescription(serverStatus.sessionStatus)}</small>
+                ${serverStatus.sessionStatus === 'CONNECTED' ? 
+                  '<div style="margin-top: 5px;"><small><i class="fas fa-info-circle"></i> Note: The free version of WAHA has limitations on sending files.</small></div>' : 
+                  ''}
+              </div>
+            </div>
+          `;
+        } else {
+          // Check if Docker is running
+          sessionStatusDiv.className = 'status-offline';
+          sessionStatusDiv.innerHTML = `
+            <div>
+              <i class="fas fa-exclamation-circle"></i> <strong>Status:</strong> OFFLINE - WAHA server not responding
+              <div style="margin-top: 10px;">
+                <button id="checkDockerBtn" class="btn btn-sm btn-outline">Check if Docker is running</button>
+                <button id="startServerBtn" class="btn btn-sm btn-primary" style="margin-left: 10px;">Start WAHA Server</button>
+              </div>
+            </div>
+          `;
+          
+          // Add event listeners for the new buttons
+          document.getElementById('checkDockerBtn').addEventListener('click', () => {
+            window.open('https://docs.docker.com/config/daemon/troubleshoot/', '_blank');
+          });
+          
+          document.getElementById('startServerBtn').addEventListener('click', () => {
+            // Open the start-waha.bat file
+            const link = document.createElement('a');
+            link.href = 'start-waha.bat';
+            link.download = 'start-waha.bat';
+            link.click();
+            
+            showAlert('Starting Server', 'Please run the start-waha.bat file to start the WAHA server.');
+          });
+        }
+      } catch (error) {
+        console.error('Error checking session status:', error);
+        sessionStatusDiv.style.display = 'block';
+        sessionStatusDiv.className = 'status-error';
+        sessionStatusDiv.innerHTML = `
+          <div>
+            <i class="fas fa-exclamation-triangle"></i> <strong>Error:</strong> ${error.message}
+            <div style="margin-top: 10px;">
+              <button id="retryBtn" class="btn btn-sm btn-primary">Retry</button>
+            </div>
+          </div>
+        `;
+        
+        // Add event listener for retry button
+        document.getElementById('retryBtn').addEventListener('click', checkSessionStatus);
+      } finally {
+        checkSessionBtn.disabled = false;
+        checkSessionBtn.innerHTML = '<i class="fas fa-sync"></i> Check Status';
+      }
+    }
+    
+    // Get status description
+    function getStatusDescription(status) {
+      switch (status) {
+        case 'CONNECTED':
+        case 'WORKING':
+          return 'WhatsApp is connected and ready to send messages.';
+        case 'STARTING':
+          return 'WhatsApp session is starting up. Please wait...';
+        case 'SCAN_QR_CODE':
+          return 'Needs QR code scan. Click "Authenticate Now" to connect.';
+        case 'FAILED':
+          return 'Session failed to start. Try restarting the session.';
+        default:
+          return 'Unknown status. Try restarting the session.';
+      }
+    }
+    
+    // Restart WhatsApp session
+    async function restartSession() {
+      if (!confirm('Are you sure you want to restart the WhatsApp session? You will need to scan the QR code again.')) {
+        return;
+      }
+      
+      restartSessionBtn.disabled = true;
+      restartSessionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restarting...';
+      
+      try {
+        // Use the serverStatus.restartSession function
+        const success = await serverStatus.restartSession();
+        
+        if (success) {
+          showAlert('Session Restart', 'The WhatsApp session has been restarted. You will need to scan a QR code the next time you send a message.');
+          
+          // Offer to authenticate now
+          setTimeout(() => {
+            if (confirm('Do you want to authenticate WhatsApp now?')) {
+              authenticateWithQR();
+            }
+          }, 500);
+        } else {
+          showAlert('Warning', 'Session restart command sent, but there might have been issues. Check the status.');
+        }
+        
+        // Update the status display
+        await checkSessionStatus();
+      } catch (error) {
+        console.error('Error restarting session:', error);
+        showAlert('Error', `Failed to restart session: ${error.message}`);
+      } finally {
+        restartSessionBtn.disabled = false;
+        restartSessionBtn.innerHTML = '<i class="fas fa-power-off"></i> Restart WhatsApp Session';
+      }
+    }
+    
+    // Start WhatsApp authentication process
+    async function startAuthentication() {
+      authenticateBtn.disabled = true;
+      authenticateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+      
+      try {
+        const result = await authenticateWithQR();
+        
+        if (result) {
+          showAlert('Success', 'WhatsApp authentication successful! You can now send messages.');
+        } else {
+          showAlert('Error', 'WhatsApp authentication failed. Please try again.');
+        }
+        
+        // Update status display
+        await checkSessionStatus();
+      } catch (error) {
+        console.error('Authentication error:', error);
+        showAlert('Error', `Authentication failed: ${error.message}`);
+      } finally {
+        authenticateBtn.disabled = false;
+        authenticateBtn.innerHTML = '<i class="fas fa-qrcode"></i> Authenticate Now';
+      }
+    }
+    
+    // Show direct QR code instructions
+    function showDirectQrInstructions() {
+      showSwaggerQRInstructions();
+    }
+  </script>
+</body>
+</html> 

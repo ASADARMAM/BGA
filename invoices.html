@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeCloud Internet Services - Invoices</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- html2pdf.js for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- html2canvas for image generation -->
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <img src="assets/logo.svg" alt="WeCloud Logo">
+        <span class="logo-text">WeCloud</span>
+      </div>
+      
+      <div class="menu-toggle" id="menuToggle">
+        <i class="fas fa-bars"></i>
+      </div>
+      
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="users.html">Users</a></li>
+        <li><a href="packages.html">Packages</a></li>
+        <li><a href="invoices.html" class="active">Invoices</a></li>
+        <li><a href="messages.html">Messages</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <div class="main-content">
+      <h1 class="mb-3">Invoices Management</h1>
+      
+      <!-- Create Invoice Form -->
+      <div class="form-container" id="invoiceForm">
+        <h2 class="form-title">Create New Invoice</h2>
+        
+        <form id="createInvoiceForm">
+          <div class="form-row">
+            <div class="form-col">
+              <div class="form-group">
+                <label for="invoiceUser" class="form-label">Select User</label>
+                <select id="invoiceUser" class="form-control" required>
+                  <option value="">Select a user</option>
+                  <!-- Users will be loaded here -->
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-col">
+              <div class="form-group">
+                <label for="invoicePackage" class="form-label">Select Package</label>
+                <select id="invoicePackage" class="form-control" required>
+                  <option value="">Select a package</option>
+                  <!-- Packages will be loaded here -->
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-col">
+              <div class="form-group">
+                <label for="invoiceAmount" class="form-label">Amount (₨)</label>
+                <input type="number" id="invoiceAmount" class="form-control" placeholder="Enter amount" min="0" step="0.01" required>
+              </div>
+            </div>
+            
+            <div class="form-col">
+              <div class="form-group">
+                <label for="invoiceDueDate" class="form-label">Due Date</label>
+                <input type="date" id="invoiceDueDate" class="form-control" required>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-col">
+              <div class="form-group">
+                <label for="invoiceStatus" class="form-label">Status</label>
+                <select id="invoiceStatus" class="form-control" required>
+                  <option value="Due">Due</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Overdue">Overdue</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-col">
+              <div class="form-group">
+                <label for="sendNotification" class="form-label">
+                  <input type="checkbox" id="sendNotification" checked>
+                  Send WhatsApp Notification
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <button type="submit" id="saveInvoiceBtn" class="btn btn-primary">
+              <i class="fas fa-save"></i> Create Invoice
+            </button>
+            <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">
+              Cancel Edit
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Bulk Actions -->
+      <div class="form-container mb-3">
+        <h2 class="form-title">Bulk Actions</h2>
+        <div class="form-row">
+          <div class="form-col">
+            <button id="generateAllInvoicesBtn" class="btn btn-primary" style="width: 100%;">
+              <i class="fas fa-file-invoice-dollar"></i> Generate Invoices for All Users
+            </button>
+          </div>
+          <div class="form-col">
+            <button id="sendAllRemindersBtn" class="btn btn-warning" style="width: 100%;">
+              <i class="fas fa-bell"></i> Send Overdue Reminders
+            </button>
+          </div>
+        </div>
+        
+        <div class="form-row mt-2">
+          <div class="form-col">
+            <div class="form-group">
+              <div>
+                <input type="checkbox" id="sendNotificationCheck" checked>
+                <label for="sendNotificationCheck">Send WhatsApp Notifications</label>
+              </div>
+            </div>
+          </div>
+          <div class="form-col">
+            <button id="broadcastAlertBtn" class="btn btn-info" style="width: 100%;">
+              <i class="fas fa-bullhorn"></i> Send Broadcast Alert
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Invoices List -->
+      <div class="table-container">
+        <div class="card-header">
+          <h2 class="card-title">Invoices List</h2>
+          <div>
+            <select id="monthFilter" class="form-control" style="display: inline-block; width: auto;">
+              <option value="all">All Months</option>
+              <option value="0">January</option>
+              <option value="1">February</option>
+              <option value="2">March</option>
+              <option value="3">April</option>
+              <option value="4">May</option>
+              <option value="5">June</option>
+              <option value="6">July</option>
+              <option value="7">August</option>
+              <option value="8">September</option>
+              <option value="9">October</option>
+              <option value="10">November</option>
+              <option value="11">December</option>
+            </select>
+            <select id="yearFilter" class="form-control" style="display: inline-block; width: auto;">
+              <option value="all">All Years</option>
+            </select>
+            <select id="statusFilter" class="form-control" style="display: inline-block; width: auto;">
+              <option value="all">All Statuses</option>
+              <option value="Due">Due</option>
+              <option value="Paid">Paid</option>
+              <option value="Overdue">Overdue</option>
+            </select>
+            <button id="filterBtn" class="btn btn-sm btn-outline">
+              <i class="fas fa-filter"></i> Filter
+            </button>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice ID</th>
+              <th>User</th>
+              <th>Package</th>
+              <th>Amount</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="invoicesList">
+            <!-- Invoices will be loaded here -->
+            <tr>
+              <td colspan="7" class="text-center">Loading invoices...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+      <p>&copy; 2023 WeCloud Internet Services. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="confirmTitle">Confirm</h3>
+        <button class="modal-close" id="confirmClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="confirmCancel">Cancel</button>
+        <button class="btn btn-danger" id="confirmOk">Delete</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Alert Modal -->
+  <div class="modal-backdrop" id="alertModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="alertTitle">Alert</h3>
+        <button class="modal-close" id="alertClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="alertMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="alertOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    // Import Firebase modules
+    import { db, collection, addDoc, getDocs, doc, updateDoc, query, where, onSnapshot, orderBy, limit } from './js/firebaseConfig.js';
+    import { getUsers } from './js/users.js';
+    import { getPackages } from './js/packages.js';
+    import { updateInvoice, listenToInvoices } from './js/invoices.js';
+    import { sendInvoiceNotification, sendInvoicePdf, sendPaymentReminder, sendBroadcastAlert, sendPaidInvoiceNotification } from './js/whatsapp.js';
+    import { generateInvoiceImage, generateFormattedInvoiceId } from './js/invoiceGenerator.js';
+    
+    // DOM Elements
+    const invoiceForm = document.getElementById('createInvoiceForm');
+    const userSelect = document.getElementById('invoiceUser');
+    const packageSelect = document.getElementById('invoicePackage');
+    const amountInput = document.getElementById('invoiceAmount');
+    const dueDateInput = document.getElementById('invoiceDueDate');
+    const statusSelect = document.getElementById('invoiceStatus');
+    const sendNotificationCheck = document.getElementById('sendNotification');
+    const saveBtn = document.getElementById('saveInvoiceBtn');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const invoicesList = document.getElementById('invoicesList');
+    const filterBtn = document.getElementById('filterBtn');
+    const statusFilter = document.getElementById('statusFilter');
+    const generateAllInvoicesBtn = document.getElementById('generateAllInvoicesBtn');
+    const sendAllRemindersBtn = document.getElementById('sendAllRemindersBtn');
+    const broadcastAlertBtn = document.getElementById('broadcastAlertBtn');
+    const menuToggle = document.getElementById('menuToggle');
+    const navLinks = document.getElementById('navLinks');
+    
+    // Modal elements
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmTitle = document.getElementById('confirmTitle');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmOk = document.getElementById('confirmOk');
+    const confirmCancel = document.getElementById('confirmCancel');
+    const confirmClose = document.getElementById('confirmClose');
+    const alertModal = document.getElementById('alertModal');
+    const alertTitle = document.getElementById('alertTitle');
+    const alertMessage = document.getElementById('alertMessage');
+    const alertOk = document.getElementById('alertOk');
+    const alertClose = document.getElementById('alertClose');
+    
+    // State variables
+    let usersData = [];
+    let packagesData = [];
+    let currentInvoiceId = null;
+    let unsubscribeInvoices = null;
+    
+    // Set default due date to 30 days from now
+    function setDefaultDueDate() {
+      const date = new Date();
+      date.setDate(date.getDate() + 30); // Set to 30 days from now
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      dueDateInput.value = `${year}-${month}-${day}`;
+    }
+    
+    // Load users
+    async function loadUsers() {
+      try {
+        usersData = await getUsers();
+        
+        // Clear select options
+        userSelect.innerHTML = '<option value="">Select a user</option>';
+        
+        // Add users to select
+        usersData.forEach(user => {
+          const option = document.createElement('option');
+          option.value = user.id;
+          option.textContent = user.name;
+          userSelect.appendChild(option);
+        });
+      } catch (error) {
+        console.error("Error loading users:", error);
+        showAlert("Error", "Failed to load users: " + error.message);
+      }
+    }
+    
+    // Load packages
+    async function loadPackages() {
+      try {
+        packagesData = await getPackages();
+        
+        // Clear select options
+        packageSelect.innerHTML = '<option value="">Select a package</option>';
+        
+        // Add packages to select
+        packagesData.forEach(pkg => {
+          const option = document.createElement('option');
+          option.value = pkg.id;
+          option.textContent = `${pkg.name} (₨${pkg.price})`;
+          packageSelect.appendChild(option);
+        });
+      } catch (error) {
+        console.error("Error loading packages:", error);
+        showAlert("Error", "Failed to load packages: " + error.message);
+      }
+    }
+    
+    // Handle package selection change
+    function handlePackageChange() {
+      if (!packageSelect.value) return;
+      
+      const selectedPackage = packagesData.find(p => p.id === packageSelect.value);
+      if (selectedPackage) {
+        amountInput.value = selectedPackage.price;
+      }
+    }
+    
+    // Update existing invoices that don't have formattedId
+    async function updateExistingInvoices() {
+      try {
+        const q = query(collection(db, "invoices"), where("formattedId", "==", null));
+        const querySnapshot = await getDocs(q);
+        
+        // Group invoices by month/year for proper sequencing
+        const monthGroups = new Map(); // key: 'YYYYMM', value: array of docs
+        
+        for (const doc of querySnapshot.docs) {
+          const invoice = doc.data();
+          const invoiceDate = invoice.createdAt?.toDate ? invoice.createdAt.toDate() : new Date(invoice.createdAt);
+          const year = invoiceDate.getFullYear();
+          const month = String(invoiceDate.getMonth() + 1).padStart(2, '0');
+          const key = `${year}${month}`;
+          
+          if (!monthGroups.has(key)) {
+            monthGroups.set(key, []);
+          }
+          monthGroups.get(key).push({ doc, invoice });
+        }
+        
+        // Process each month group
+        for (const [key, invoices] of monthGroups) {
+          const year = key.substring(0, 4);
+          const month = key.substring(4, 6);
+          
+          // Get existing random characters for this month
+          const existingQuery = query(
+            collection(db, "invoices"),
+            where("year", "==", parseInt(year)),
+            where("month", "==", parseInt(month) - 1),
+            where("formattedId", "!=", null),
+            orderBy("formattedId", "desc"),
+            limit(1)
+          );
+          
+          const existingSnapshot = await getDocs(existingQuery);
+          let random = '';
+          let sequence = 1;
+          
+          // If we have existing invoices this month, use their random characters
+          if (!existingSnapshot.empty) {
+            const latestInvoice = existingSnapshot.docs[0].data();
+            if (latestInvoice.formattedId) {
+              // Extract the random characters from existing invoice ID (chars 7-10)
+              random = latestInvoice.formattedId.substring(6, 10);
+              // Get the sequence number and increment
+              sequence = parseInt(latestInvoice.formattedId.substring(10)) + 1;
+            }
+          }
+          
+          // If no existing random characters, generate new ones
+          if (!random) {
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            for (let i = 0; i < 4; i++) {
+              random += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+          }
+          
+          // Sort invoices by creation date
+          invoices.sort((a, b) => {
+            const dateA = a.invoice.createdAt?.toDate ? a.invoice.createdAt.toDate() : new Date(a.invoice.createdAt);
+            const dateB = b.invoice.createdAt?.toDate ? b.invoice.createdAt.toDate() : new Date(b.invoice.createdAt);
+            return dateA - dateB;
+          });
+          
+          // Update each invoice with new format
+          for (const { doc } of invoices) {
+            const paddedSequence = String(sequence++).padStart(4, '0');
+            const formattedId = `${year}${month}${random}${paddedSequence}`;
+            await updateDoc(doc.ref, { formattedId });
+          }
+        }
+      } catch (error) {
+        console.error("Error updating existing invoices:", error);
+      }
+    }
+    
+    // Initialize invoice listeners
+    async function initializeInvoiceListeners() {
+      try {
+        // Unsubscribe from previous listener if exists
+        if (unsubscribeInvoices) {
+          unsubscribeInvoices();
+        }
+        
+        // Set up real-time listener for invoices
+        const q = query(collection(db, "invoices"), orderBy("createdAt", "desc"));
+        unsubscribeInvoices = onSnapshot(q, (snapshot) => {
+          const invoices = new Map(); // Use Map to prevent duplicates by ID
+          
+          snapshot.forEach((doc) => {
+            const invoice = {
+              id: doc.id,
+              ...doc.data()
+            };
+            
+            // Only add if we haven't seen this ID before
+            if (!invoices.has(doc.id)) {
+              invoices.set(doc.id, invoice);
+              
+              // Check if invoice is overdue
+              if (invoice.status === 'Due' && invoice.dueDate) {
+                const dueDate = new Date(invoice.dueDate.seconds * 1000);
+                const today = new Date();
+                if (dueDate < today) {
+                  // Update status to overdue in the database
+                  updateDoc(doc.ref, { status: 'Overdue' });
+                  invoice.status = 'Overdue';
+                }
+              }
+            }
+          });
+          
+          // Convert Map to Array and render
+          renderInvoicesList(Array.from(invoices.values()));
+        });
+      } catch (error) {
+        console.error("Error initializing invoice listeners:", error);
+        showAlert("Error", "Failed to load invoices: " + error.message);
+      }
+    }
+    
+    // Render invoices list
+    function renderInvoicesList(invoices) {
+      // Clear existing invoices first
+      invoicesList.innerHTML = '';
+      
+      // Populate year filter dynamically
+      const yearFilter = document.getElementById('yearFilter');
+      const years = new Set();
+      invoices.forEach(inv => {
+        if (typeof inv.year !== 'undefined') years.add(inv.year);
+      });
+      const sortedYears = Array.from(years).sort((a, b) => b - a);
+      yearFilter.innerHTML = '<option value="all">All Years</option>' + sortedYears.map(y => `<option value="${y}">${y}</option>`).join('');
+
+      // Apply filters
+      const filterValue = statusFilter.value;
+      const monthValue = document.getElementById('monthFilter').value;
+      const yearValue = yearFilter.value;
+      let filtered = invoices;
+      if (filterValue !== 'all') {
+        filtered = filtered.filter(invoice => invoice.status === filterValue);
+      }
+      if (monthValue !== 'all') {
+        filtered = filtered.filter(invoice => String(invoice.month) === String(monthValue));
+      }
+      if (yearValue !== 'all') {
+        filtered = filtered.filter(invoice => String(invoice.year) === String(yearValue));
+      }
+      if (filtered.length === 0) {
+        invoicesList.innerHTML = '<tr><td colspan="7" class="text-center">No invoices with selected filters</td></tr>';
+        return;
+      }
+      
+      // Sort invoices by due date (most recent first)
+      filtered.sort((a, b) => {
+        const dateA = a.dueDate ? new Date(a.dueDate.seconds * 1000) : new Date();
+        const dateB = b.dueDate ? new Date(b.dueDate.seconds * 1000) : new Date();
+        return dateB - dateA;
+      });
+      
+      // Add each invoice to the table
+      filtered.forEach(invoice => {
+        const row = document.createElement('tr');
+        
+        // Find user name
+        let userName = 'Unknown User';
+        if (invoice.userId) {
+          const foundUser = usersData.find(u => u.id === invoice.userId);
+          if (foundUser) {
+            userName = foundUser.name;
+          }
+        }
+        
+        // Find package name
+        let packageName = 'Unknown Package';
+        if (invoice.packageId) {
+          const foundPackage = packagesData.find(p => p.id === invoice.packageId);
+          if (foundPackage) {
+            packageName = foundPackage.name;
+          }
+        }
+        
+        // Format due date
+        const dueDate = invoice.dueDate ? (invoice.dueDate.seconds ? new Date(invoice.dueDate.seconds * 1000) : new Date(invoice.dueDate)) : new Date();
+        const formattedDate = dueDate.toLocaleDateString();
+        
+        // Create status badge class
+        let statusClass = 'badge-warning';
+        if (invoice.status === 'Paid') {
+          statusClass = 'badge-success';
+        } else if (invoice.status === 'Overdue') {
+          statusClass = 'badge-danger';
+        }
+
+        // Determine which action buttons to show based on status
+        const editButton = `<button class="btn btn-sm btn-outline edit-btn" data-id="${invoice.id}">
+          <i class="fas fa-edit"></i>
+        </button>`;
+
+        const deleteButton = `<button class="btn btn-sm btn-danger delete-btn" data-id="${invoice.id}">
+          <i class="fas fa-trash"></i>
+        </button>`;
+
+        const notifyButton = invoice.status !== 'Paid' ? `<button class="btn btn-sm btn-warning notify-btn" data-id="${invoice.id}" title="Send Reminder">
+          <i class="fas fa-bell"></i>
+        </button>` : '';
+
+        const markPaidButton = invoice.status === 'Due' ? `<button class="btn btn-sm btn-success mark-paid-btn" data-id="${invoice.id}" title="Mark as Paid">
+          <i class="fas fa-check"></i>
+        </button>` : '';
+
+        const handleOverdueButton = invoice.status === 'Overdue' ? `<button class="btn btn-sm btn-danger handle-overdue-btn" data-id="${invoice.id}" title="Handle Overdue">
+          <i class="fas fa-exclamation-triangle"></i>
+        </button>` : '';
+
+        const printButton = `<button class="btn btn-sm btn-info print-btn" data-id="${invoice.id}" title="Print Invoice">
+          <i class="fas fa-print"></i>
+        </button>`;
+        
+        row.innerHTML = `
+          <td>${invoice.formattedId || invoice.id}</td>
+          <td>${userName}</td>
+          <td>${packageName}</td>
+          <td>₨${parseFloat(invoice.amount).toFixed(2)}</td>
+          <td>${formattedDate}</td>
+          <td><span class="badge ${statusClass}">${invoice.status}</span></td>
+          <td>
+            ${editButton}
+            ${deleteButton}
+            ${notifyButton}
+            ${handleOverdueButton}
+            ${markPaidButton}
+            ${printButton}
+          </td>
+        `;
+        
+        invoicesList.appendChild(row);
+        
+        // Add event listeners to buttons
+        row.querySelector('.edit-btn').addEventListener('click', () => editInvoice(invoice));
+        row.querySelector('.delete-btn').addEventListener('click', () => confirmDeleteInvoice(invoice));
+        if (invoice.status !== 'Paid') {
+          row.querySelector('.notify-btn')?.addEventListener('click', () => sendInvoiceReminder(invoice));
+        }
+        if (invoice.status === 'Due') {
+          row.querySelector('.mark-paid-btn')?.addEventListener('click', () => markInvoiceAsPaid(invoice));
+        }
+        if (invoice.status === 'Overdue') {
+          row.querySelector('.handle-overdue-btn')?.addEventListener('click', () => handleOverdueInvoice(invoice));
+        }
+        row.querySelector('.print-btn').addEventListener('click', () => printInvoice(invoice));
+      });
+    }
+    
+    // Handle form submission
+    async function handleFormSubmit(event) {
+      event.preventDefault();
+      
+      try {
+        // Get form values
+        const invoiceData = {
+          userId: userSelect.value,
+          packageId: packageSelect.value,
+          amount: parseFloat(amountInput.value).toFixed(2),
+          dueDate: new Date(dueDateInput.value),
+          status: 'Due', // Always set as Due for new invoices
+          createdAt: new Date(),
+          month: new Date().getMonth(),
+          year: new Date().getFullYear()
+        };
+        
+        // Validate required fields
+        if (!invoiceData.userId || !invoiceData.packageId) {
+          showAlert("Invalid Input", "Please select both a user and a package.");
+          return;
+        }
+        
+        const sendNotification = sendNotificationCheck.checked;
+        
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        
+        if (currentInvoiceId) {
+          // Update existing invoice
+          await updateInvoice(currentInvoiceId, invoiceData);
+          showAlert("Success", "Invoice updated successfully!");
+        } else {
+          // Generate formatted invoice ID
+          const formattedId = await generateFormattedInvoiceId();
+          
+          // Add formatted ID to invoice data
+          invoiceData.formattedId = formattedId;
+          
+          // Create invoice with formatted ID
+          const docRef = await addDoc(collection(db, "invoices"), invoiceData);
+          
+          // Now generate invoice image with the formatted ID
+          if (sendNotification) {
+            const imageBlob = await createInvoiceImageHTML({
+            ...invoiceData,
+              id: docRef.id,
+              formattedId: formattedId
+          });
+
+            // Send notifications with formatted ID
+            await sendInvoiceNotification(usersData.find(u => u.id === invoiceData.userId), { 
+              ...invoiceData, 
+              id: docRef.id,
+              formattedId: formattedId 
+            });
+            await sendInvoicePdf(usersData.find(u => u.id === invoiceData.userId), { 
+              ...invoiceData, 
+              id: docRef.id,
+              formattedId: formattedId 
+            }, imageBlob);
+          }
+
+          showAlert("Success", "Invoice created successfully!" + (sendNotification ? " WhatsApp notification and invoice sent." : ""));
+        }
+        
+        // Reset form
+        invoiceForm.reset();
+        currentInvoiceId = null;
+        saveBtn.textContent = 'Create Invoice';
+        cancelBtn.style.display = 'none';
+        setDefaultDueDate();
+        
+        // Refresh the invoices list
+        initializeInvoiceListeners();
+      } catch (error) {
+        console.error("Error saving invoice:", error);
+        showAlert("Error", "Failed to save invoice: " + error.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Create Invoice';
+      }
+    }
+    
+    // Edit invoice
+    function editInvoice(invoice) {
+      // Set form values
+      userSelect.value = invoice.userId || '';
+      packageSelect.value = invoice.packageId || '';
+      amountInput.value = invoice.amount || '';
+      
+      // Format date for input
+      if (invoice.dueDate) {
+        const dueDate = new Date(invoice.dueDate.seconds * 1000);
+        const year = dueDate.getFullYear();
+        const month = String(dueDate.getMonth() + 1).padStart(2, '0');
+        const day = String(dueDate.getDate()).padStart(2, '0');
+        dueDateInput.value = `${year}-${month}-${day}`;
+      }
+      
+      statusSelect.value = invoice.status || 'Due';
+      
+      // Update form state
+      currentInvoiceId = invoice.id;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> Update Invoice';
+      cancelBtn.style.display = 'inline-block';
+      
+      // Scroll to form
+      invoiceForm.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    // Cancel edit
+    function cancelEdit() {
+      invoiceForm.reset();
+      currentInvoiceId = null;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> Create Invoice';
+      cancelBtn.style.display = 'none';
+      setDefaultDueDate();
+    }
+    
+    // Confirm delete invoice
+    function confirmDeleteInvoice(invoice) {
+      confirmTitle.textContent = 'Delete Invoice';
+      confirmMessage.textContent = `Are you sure you want to delete this invoice? This action cannot be undone.`;
+      
+      // Show modal
+      confirmModal.classList.add('show');
+      
+      // Set up confirm button
+      confirmOk.onclick = async () => {
+        try {
+          confirmOk.disabled = true;
+          confirmOk.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+          
+          // Import deleteInvoice function from the invoices.js module
+          const { deleteInvoice } = await import('./js/invoices.js');
+          await deleteInvoice(invoice.id);
+          
+          // Close modal and reset button state
+          confirmModal.classList.remove('show');
+          confirmOk.disabled = false;
+          confirmOk.innerHTML = 'Delete';
+          
+          showAlert("Success", "Invoice deleted successfully!");
+        } catch (error) {
+          console.error("Error deleting invoice:", error);
+          showAlert("Error", "Failed to delete invoice: " + error.message);
+        } finally {
+          // Always reset button state and close modal
+          confirmOk.disabled = false;
+          confirmOk.innerHTML = 'Delete';
+          confirmModal.classList.remove('show');
+        }
+      };
+      
+      // Set up cancel button
+      confirmCancel.onclick = () => {
+        confirmModal.classList.remove('show');
+        confirmOk.disabled = false;
+        confirmOk.innerHTML = 'Delete';
+      };
+      
+      // Set up close button
+      confirmClose.onclick = () => {
+        confirmModal.classList.remove('show');
+        confirmOk.disabled = false;
+        confirmOk.innerHTML = 'Delete';
+      };
+    }
+    
+    // Send invoice reminder
+    async function sendInvoiceReminder(invoice) {
+      try {
+        // Find user
+        const user = usersData.find(u => u.id === invoice.userId);
+        if (!user) {
+          showAlert("Error", "User not found for this invoice.");
+          return;
+        }
+        
+        // Find package
+        const packageInfo = packagesData.find(p => p.id === invoice.packageId);
+        if (!packageInfo) {
+          showAlert("Error", "Package not found for this invoice.");
+          return;
+        }
+        
+        // Prepare invoice data for notification
+        const invoiceForNotification = {
+          id: invoice.id,
+          amount: invoice.amount,
+          dueDate: invoice.dueDate,
+          packageName: packageInfo.name
+        };
+        
+        await sendInvoiceNotification(user, invoiceForNotification);
+        showAlert("Success", "WhatsApp reminder sent successfully!");
+      } catch (error) {
+        console.error("Error sending reminder:", error);
+        showAlert("Error", "Failed to send reminder: " + error.message);
+      }
+    }
+    
+    // Generate invoice image
+    async function createInvoiceImageHTML(invoice) {
+      try {
+        console.log('Starting invoice image generation:', invoice.id);
+        
+        // Find user and package details
+        const user = usersData.find(u => u.id === invoice.userId) || { name: '', phone: '' };
+        const packageInfo = packagesData.find(p => p.id === invoice.packageId) || { name: '', speed: '', price: '' };
+        
+        // Format dates properly
+        const dueDate = invoice.dueDate?.toDate ? invoice.dueDate.toDate() : new Date(invoice.dueDate);
+        const createdAt = invoice.createdAt?.toDate ? invoice.createdAt.toDate() : new Date(invoice.createdAt);
+        const formattedDueDate = dueDate.toLocaleDateString();
+        const formattedCreatedDate = createdAt.toLocaleDateString();
+        const paid = invoice.status === 'Paid';
+
+        // Create container
+        const container = document.createElement('div');
+        container.style.cssText = `
+          width: 800px;
+          padding: 40px;
+          background: white;
+          font-family: Arial, sans-serif;
+          position: relative;
+        `;
+        
+        // Add invoice content
+        container.innerHTML = `
+          <div style="text-align: center; margin-bottom: 30px;">
+            <img src="assets/logo.svg" style="width: 120px; margin-bottom: 10px;">
+            <h1 style="margin: 0; color: #1a237e; font-size: 24px;">WeCloud Internet Services</h1>
+          </div>
+
+          <div style="margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 20px;">
+            <table style="width: 100%;">
+              <tr>
+                <td style="padding: 5px;"><strong>Invoice ID:</strong> ${invoice.formattedId || invoice.id}</td>
+                <td style="text-align: right;"><strong>Date:</strong> ${formattedCreatedDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px;"><strong>Customer:</strong> ${user.name}</td>
+                <td style="text-align: right;"><strong>Phone:</strong> ${user.phone || ''}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px;"><strong>Status:</strong> ${paid ? 'Paid' : 'Due'}</td>
+                <td style="text-align: right;"><strong>Due Date:</strong> ${formattedDueDate}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr style="background: #f5f5f5;">
+                <th style="padding: 10px; border: 1px solid #000;">Package</th>
+                <th style="padding: 10px; border: 1px solid #000;">Speed</th>
+                <th style="padding: 10px; border: 1px solid #000;">Monthly Fee</th>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #000;">${packageInfo.name}</td>
+                <td style="padding: 10px; border: 1px solid #000;">${packageInfo.speed || ''}</td>
+                <td style="padding: 10px; border: 1px solid #000;">₨${packageInfo.price}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr style="background: #f5f5f5;">
+                <th style="padding: 10px; border: 1px solid #000;">Description</th>
+                <th style="padding: 10px; border: 1px solid #000;">Amount (₨)</th>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #000;">Internet Service (${packageInfo.name})</td>
+                <td style="padding: 10px; border: 1px solid #000;">₨${parseFloat(invoice.amount).toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #000; font-weight: bold;">Total</td>
+                <td style="padding: 10px; border: 1px solid #000; font-weight: bold;">₨${parseFloat(invoice.amount).toFixed(2)}</td>
+              </tr>
+            </table>
+          </div>
+
+          ${paid ? `
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg);">
+              <div style="border: 5px solid #4CAF50; color: #4CAF50; padding: 10px 40px; font-size: 48px; font-weight: bold; text-transform: uppercase; opacity: 0.8;">
+                PAID
+              </div>
+            </div>
+          ` : ''}
+
+          <div style="margin-top: 40px; text-align: center; color: #666; font-size: 14px; border-top: 2px solid #eee; padding-top: 20px;">
+            Thank you for your business!<br>
+            For support, contact us at info@wecloud.com or +92-XXX-XXXXXXX
+          </div>
+          
+          ${paid ? `
+            <div style="margin-top: 20px; text-align: center; color: #4CAF50; font-size: 16px;">
+              Invoice #${invoice.formattedId || invoice.id} - Marked as Paid<br>
+              Thank you for your payment!
+            </div>
+          ` : ''}
+        `;
+
+        // Add to document
+        document.body.appendChild(container);
+
+        // Use html2canvas to create an image
+        const canvas = await html2canvas(container, {
+          scale: 2,
+          useCORS: true,
+          logging: true,
+          backgroundColor: '#ffffff'
+        });
+
+        // Convert canvas to blob
+        const blob = await new Promise(resolve => {
+          canvas.toBlob(resolve, 'image/jpeg', 0.95);
+        });
+
+        // Clean up
+        document.body.removeChild(container);
+
+        return blob;
+      } catch (error) {
+        console.error('Error generating invoice image:', error);
+        throw error;
+      }
+    }
+    
+    // Generate invoices for all users
+    async function generateAllInvoices() {
+      try {
+        // Confirm before proceeding
+        if (!confirm('This will generate invoices for users who don\'t have invoices for the current month. Continue?')) {
+          return;
+        }
+        
+        // Disable button and show loading
+        generateAllInvoicesBtn.disabled = true;
+        generateAllInvoicesBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        
+        // Get current month and year
+        const currentMonth = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+        
+        // Get all users and packages data first to avoid multiple queries
+        const [usersSnapshot, packagesSnapshot] = await Promise.all([
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "packages"))
+        ]);
+        
+        // Create maps for quick lookup
+        const packagesMap = new Map();
+        packagesSnapshot.forEach(doc => {
+          packagesMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+        
+        // Check for existing invoices this month
+        const existingInvoicesQuery = query(
+          collection(db, "invoices"),
+          where("month", "==", currentMonth),
+          where("year", "==", currentYear)
+        );
+        const existingInvoicesSnapshot = await getDocs(existingInvoicesQuery);
+        const existingInvoices = new Map();
+        existingInvoicesSnapshot.forEach(doc => {
+          const data = doc.data();
+          existingInvoices.set(data.userId, true);
+        });
+        
+        // Filter users who need invoices
+        const usersToProcess = [];
+        usersSnapshot.forEach(doc => {
+          const userData = doc.data();
+          if (userData.packageId && !existingInvoices.has(doc.id) && packagesMap.has(userData.packageId)) {
+            usersToProcess.push({
+              id: doc.id,
+              ...userData
+            });
+          }
+        });
+        
+        if (usersToProcess.length === 0) {
+          showAlert("No Users Found", "No users with assigned packages were found who need invoices.");
+          return;
+        }
+        
+        // Set due date to end of current month
+        const dueDate = new Date();
+        dueDate.setMonth(dueDate.getMonth() + 1);
+        dueDate.setDate(0); // Last day of current month
+        dueDate.setHours(23, 59, 59, 999); // Set to end of day
+        
+        // Get year and month for invoice ID formatting
+        const year = dueDate.getFullYear().toString();
+        const month = String(dueDate.getMonth() + 1).padStart(2, '0');
+        
+        // Process users in batches of 5 for better performance
+        const batchSize = 5;
+        const results = {
+          total: usersToProcess.length,
+          success: 0,
+          failed: 0,
+          details: []
+        };
+        
+        // Generate random characters (4 characters) - use the same for all invoices in this batch
+        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        let random = '';
+        for (let i = 0; i < 4; i++) {
+          random += characters.charAt(Math.floor(Math.random() * characters.length));
+        }
+        
+        // Get current sequence number for the current month
+        const currentMonthQuery = query(
+          collection(db, "invoices"),
+          where("year", "==", currentYear),
+          where("month", "==", currentMonth)
+        );
+        const querySnapshot = await getDocs(currentMonthQuery);
+        let sequence = querySnapshot.size + 1;
+        
+        for (let i = 0; i < usersToProcess.length; i += batchSize) {
+          const batch = usersToProcess.slice(i, i + batchSize);
+          await Promise.all(batch.map(async (user) => {
+            try {
+              const packageData = packagesMap.get(user.packageId);
+              if (!packageData) {
+                throw new Error("Package not found");
+              }
+              
+              // Generate formatted invoice ID with incrementing sequence
+              const paddedSequence = String(sequence++).padStart(4, '0');
+              const formattedId = `${year}${month}${random}${paddedSequence}`;
+              
+              // Create invoice data
+              const invoiceData = {
+                formattedId: formattedId,
+                userId: user.id,
+                packageId: user.packageId,
+                amount: packageData.price,
+                dueDate: new Date(dueDate),
+                status: 'Due',
+                createdAt: new Date(),
+                month: currentMonth,
+                year: currentYear
+              };
+              
+              // Add invoice first to get real ID
+              const docRef = await addDoc(collection(db, "invoices"), invoiceData);
+              
+              // Now generate invoice image with real ID
+              if (sendNotificationCheck.checked) {
+                const imageBlob = await createInvoiceImageHTML({
+                  ...invoiceData,
+                  id: formattedId,
+                  dueDate: new Date(dueDate),
+                  createdAt: new Date()
+                });
+                
+                // Send notifications
+                await sendInvoiceNotification(user, { ...invoiceData, id: formattedId });
+                await sendInvoicePdf(user, { ...invoiceData, id: formattedId }, imageBlob);
+              }
+              
+              results.success++;
+              results.details.push({
+                userId: user.id,
+                userName: user.name,
+                invoiceId: formattedId,
+                success: true
+              });
+            } catch (error) {
+              console.error(`Error creating invoice for user ${user.id}:`, error);
+              results.failed++;
+              results.details.push({
+                userId: user.id,
+                userName: user.name,
+                success: false,
+                error: error.message
+              });
+            }
+          }));
+          
+          // Update progress
+          const progress = Math.round(((i + batch.length) / usersToProcess.length) * 100);
+          generateAllInvoicesBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Generating... ${progress}%`;
+        }
+        
+        // Show results
+        showAlert(
+          "Invoice Generation Complete", 
+          `Successfully generated ${results.success} invoices out of ${results.total} users.\n` +
+          (results.failed > 0 ? `Failed: ${results.failed}\n` : '') +
+          (sendNotificationCheck.checked ? `WhatsApp notifications and invoices have been sent.` : '')
+        );
+      } catch (error) {
+        console.error("Error generating invoices:", error);
+        showAlert("Error", "Failed to generate invoices: " + error.message);
+      } finally {
+        generateAllInvoicesBtn.disabled = false;
+        generateAllInvoicesBtn.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Generate Invoices for All Users';
+      }
+    }
+    
+    // Send payment reminders for overdue invoices
+    async function sendPaymentReminders() {
+      try {
+        const sendNotification = document.getElementById('sendNotificationCheck').checked;
+        
+        if (!sendNotification) {
+          showAlert("Warning", "WhatsApp notifications are disabled. No reminders will be sent.");
+          return;
+        }
+        
+        // Confirm before proceeding
+        if (!confirm('This will send reminders for all overdue invoices. Continue?')) {
+          return;
+        }
+        
+        // Disable button and show loading
+        sendAllRemindersBtn.disabled = true;
+        sendAllRemindersBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        
+        // Send reminders for overdue invoices only
+        const results = await sendReminders('overdue');
+        
+        // Show results
+        showAlert(
+          "Payment Reminders Sent", 
+          `Successfully sent ${results.sent} reminders out of ${results.total} overdue invoices.\n` +
+          (results.failed > 0 ? `Failed: ${results.failed}` : '')
+        );
+      } catch (error) {
+        console.error("Error sending payment reminders:", error);
+        showAlert("Error", "Failed to send reminders: " + error.message);
+      } finally {
+        sendAllRemindersBtn.disabled = false;
+        sendAllRemindersBtn.innerHTML = '<i class="fas fa-bell"></i> Send Overdue Reminders';
+      }
+    }
+    
+    // Open broadcast alert dialog
+    function openBroadcastDialog() {
+      // Redirect to the messages page for broadcast alerts
+      window.location.href = 'messages.html';
+    }
+    
+    // Print invoice
+    async function printInvoice(invoice) {
+      try {
+        // Find user and package details
+        const user = usersData.find(u => u.id === invoice.userId) || { name: '', phone: '' };
+        const packageInfo = packagesData.find(p => p.id === invoice.packageId) || { name: '', speed: '', price: '' };
+        const dueDate = invoice.dueDate ? (invoice.dueDate.seconds ? new Date(invoice.dueDate.seconds * 1000) : new Date(invoice.dueDate)) : new Date();
+        const createdAt = invoice.createdAt ? (invoice.createdAt.seconds ? new Date(invoice.createdAt.seconds * 1000) : new Date(invoice.createdAt)) : new Date();
+        const paid = invoice.status === 'Paid';
+
+        // Fetch the template
+        const response = await fetch('invoice-template.html');
+        if (!response.ok) {
+          throw new Error('Failed to load invoice template');
+        }
+        let template = await response.text();
+
+        // Replace placeholders
+        const replacements = {
+          '{{invoiceId}}': invoice.id,
+          '{{logoUrl}}': window.location.origin + '/wecloud/assets/logo.svg',
+          '{{createdDate}}': createdAt.toLocaleDateString(),
+          '{{customerName}}': user.name,
+          '{{customerPhone}}': user.phone || '',
+          '{{status}}': invoice.status,
+          '{{dueDate}}': dueDate.toLocaleDateString(),
+          '{{packageName}}': packageInfo.name,
+          '{{packageSpeed}}': packageInfo.speed || '',
+          '{{packagePrice}}': `₨${packageInfo.price}`,
+          '{{amount}}': parseFloat(invoice.amount).toFixed(2),
+          '{{paidStamp}}': paid ? '<div class="paid-stamp">PAID</div>' : ''
+        };
+
+        // Apply replacements
+        for (const [placeholder, value] of Object.entries(replacements)) {
+          template = template.replace(new RegExp(placeholder, 'g'), value);
+        }
+
+        // Open in new window and print
+        const printWin = window.open('', '_blank');
+        printWin.document.write(template);
+        printWin.document.close();
+      } catch (error) {
+        console.error('Error printing invoice:', error);
+        showAlert('Error', 'Failed to print invoice: ' + error.message);
+      }
+    }
+    
+    // Handle overdue invoice
+    async function handleOverdueInvoice(invoice) {
+      try {
+        // Show confirmation dialog with options
+        confirmTitle.textContent = 'Handle Overdue Invoice';
+        confirmMessage.innerHTML = `
+          This invoice is overdue. What would you like to do?<br><br>
+          <button class="btn btn-warning" id="addLateFeesBtn">Add Late Fees</button>
+          <button class="btn btn-success" id="markPaidWithFeesBtn">Mark as Paid with Late Fees</button>
+          <button class="btn btn-danger" id="markDefaultedBtn">Mark as Defaulted</button>
+        `;
+        
+        // Show modal
+        confirmModal.classList.add('show');
+        
+        // Add event listeners for the buttons
+        document.getElementById('addLateFeesBtn').onclick = async () => {
+          const lateFee = parseFloat(prompt('Enter late fee amount:', '100'));
+          if (!isNaN(lateFee) && lateFee > 0) {
+            const newAmount = parseFloat(invoice.amount) + lateFee;
+            await updateInvoice(invoice.id, {
+              amount: newAmount.toFixed(2),
+              lateFee: lateFee
+            });
+            showAlert('Success', `Late fee of ₨${lateFee} added. New total: ₨${newAmount}`);
+            confirmModal.classList.remove('show');
+            initializeInvoiceListeners();
+          }
+        };
+        
+        document.getElementById('markPaidWithFeesBtn').onclick = async () => {
+          const lateFee = parseFloat(prompt('Enter late fee amount:', '100'));
+          if (!isNaN(lateFee) && lateFee > 0) {
+            const newAmount = parseFloat(invoice.amount) + lateFee;
+            await updateInvoice(invoice.id, {
+              amount: newAmount.toFixed(2),
+              lateFee: lateFee,
+              status: 'Paid',
+              paidAt: new Date()
+            });
+            showAlert('Success', `Invoice marked as paid with late fee of ₨${lateFee}. Total paid: ₨${newAmount}`);
+            confirmModal.classList.remove('show');
+            initializeInvoiceListeners();
+          }
+        };
+        
+        document.getElementById('markDefaultedBtn').onclick = async () => {
+          if (confirm('Are you sure you want to mark this invoice as defaulted? This action cannot be undone.')) {
+            await updateInvoice(invoice.id, {
+              status: 'Defaulted'
+            });
+            showAlert('Warning', 'Invoice marked as defaulted');
+            confirmModal.classList.remove('show');
+            initializeInvoiceListeners();
+          }
+        };
+        
+        // Update close button event
+        confirmClose.onclick = () => {
+          confirmModal.classList.remove('show');
+        };
+        
+        confirmCancel.onclick = () => {
+          confirmModal.classList.remove('show');
+        };
+      } catch (error) {
+        console.error('Error handling overdue invoice:', error);
+        showAlert('Error', 'Failed to handle overdue invoice: ' + error.message);
+      }
+    }
+    
+    // Mark invoice as paid
+    async function markInvoiceAsPaid(invoice) {
+      try {
+        console.log('Starting mark as paid process for invoice:', invoice.id);
+        
+        // Find user
+        const user = usersData.find(u => u.id === invoice.userId);
+        if (!user) {
+          throw new Error('User not found');
+        }
+        console.log('Found user:', user);
+
+        // Use existing formattedId - don't generate a new one
+        const formattedId = invoice.formattedId;
+        if (!formattedId) {
+          throw new Error('Invoice ID format is missing');
+        }
+
+        // Update invoice status
+        await updateInvoice(invoice.id, { 
+          status: 'Paid',
+          paidAt: new Date()
+        });
+        console.log('Invoice status updated to Paid');
+
+        // Generate new invoice image with PAID stamp
+        const updatedInvoice = {
+          ...invoice,
+          status: 'Paid',
+          paidAt: new Date()
+        };
+        console.log('Starting invoice image generation...');
+        const imageBlob = await createInvoiceImageHTML(updatedInvoice);
+        console.log('Invoice image generated successfully, blob size:', imageBlob.size);
+
+        // Send image via WhatsApp if notification is enabled
+        const sendNotification = document.getElementById('sendNotificationCheck').checked;
+        console.log('Send notification enabled:', sendNotification);
+        
+        if (sendNotification) {
+          console.log('Attempting to send paid notification and image via WhatsApp...');
+          // Send the PAID notification with the new function
+          await sendPaidInvoiceNotification(user, updatedInvoice);
+          // Then send the invoice with PAID stamp
+          await sendInvoicePdf(user, updatedInvoice, imageBlob);
+          console.log('WhatsApp notifications sent');
+        }
+
+        showAlert('Success', `Invoice #${formattedId} - Marked as Paid!` + (sendNotification ? ' WhatsApp notification and paid invoice sent.' : ''));
+        initializeInvoiceListeners();
+      } catch (error) {
+        console.error('Error marking invoice as paid:', error);
+        showAlert('Error', 'Failed to mark invoice as paid: ' + error.message);
+      }
+    }
+    
+    // Handle filter button click
+    function handleFilter() {
+      // Re-render invoices with current filter
+      initializeInvoiceListeners();
+    }
+    
+    // Show alert modal
+    function showAlert(title, message) {
+      alertTitle.textContent = title;
+      alertMessage.textContent = message;
+      alertModal.classList.add('show');
+    }
+    
+    // Close modals
+    function closeConfirmModal() {
+      confirmModal.classList.remove('show');
+    }
+    
+    function closeAlertModal() {
+      alertModal.classList.remove('show');
+    }
+    
+    // Toggle mobile menu
+    function toggleMenu() {
+      navLinks.classList.toggle('active');
+    }
+    
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      loadUsers();
+      loadPackages();
+      initializeInvoiceListeners();
+      setDefaultDueDate();
+    });
+    
+    // Clean up listener when page is unloaded
+    window.addEventListener('unload', () => {
+      if (unsubscribeInvoices) {
+        unsubscribeInvoices();
+      }
+    });
+    
+    invoiceForm.addEventListener('submit', handleFormSubmit);
+    packageSelect.addEventListener('change', handlePackageChange);
+    cancelBtn.addEventListener('click', cancelEdit);
+    filterBtn.addEventListener('click', handleFilter);
+    generateAllInvoicesBtn.addEventListener('click', generateAllInvoices);
+    sendAllRemindersBtn.addEventListener('click', sendPaymentReminders);
+    broadcastAlertBtn.addEventListener('click', openBroadcastDialog);
+    
+    confirmCancel.addEventListener('click', closeConfirmModal);
+    confirmClose.addEventListener('click', closeConfirmModal);
+    alertOk.addEventListener('click', closeAlertModal);
+    alertClose.addEventListener('click', closeAlertModal);
+    menuToggle.addEventListener('click', toggleMenu);
+  </script>
+</body>
+</html>

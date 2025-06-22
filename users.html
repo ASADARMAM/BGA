@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeCloud Internet Services - Users</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <img src="assets/logo.svg" alt="WeCloud Logo">
+        <span class="logo-text">WeCloud</span>
+      </div>
+      
+      <div class="menu-toggle" id="menuToggle">
+        <i class="fas fa-bars"></i>
+      </div>
+      
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="users.html" class="active">Users</a></li>
+        <li><a href="packages.html">Packages</a></li>
+        <li><a href="invoices.html">Invoices</a></li>
+        <li><a href="messages.html">Messages</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <div class="main-content">
+      <h1 class="mb-3">Users Management</h1>
+      
+      <!-- Add User Form -->
+      <div class="form-container" id="userForm">
+        <h2 class="form-title">Add New User</h2>
+        
+        <form id="addUserForm">
+          <div class="form-row">
+            <div class="form-col">
+              <div class="form-group">
+                <label for="userName" class="form-label">Full Name</label>
+                <input type="text" id="userName" class="form-control" placeholder="Enter full name" required>
+              </div>
+            </div>
+            
+            <div class="form-col">
+              <div class="form-group">
+                <label for="userPhone" class="form-label">Phone Number</label>
+                <input type="tel" id="userPhone" class="form-control" placeholder="e.g., 923001234567" required>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="userAddress" class="form-label">Address</label>
+            <input type="text" id="userAddress" class="form-control" placeholder="Enter address" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="userPackage" class="form-label">Assigned Package</label>
+            <select id="userPackage" class="form-control">
+              <option value="">Select a package</option>
+              <!-- Packages will be loaded here -->
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="userEmail" class="form-label">Email (Optional)</label>
+            <input type="email" id="userEmail" class="form-control" placeholder="Enter email address">
+          </div>
+          
+          <div class="form-group">
+            <label for="userNotes" class="form-label">Notes (Optional)</label>
+            <textarea id="userNotes" class="form-control" placeholder="Enter any additional notes"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <button type="submit" id="saveUserBtn" class="btn btn-primary">
+              <i class="fas fa-save"></i> Save User
+            </button>
+            <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">
+              Cancel Edit
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Users List -->
+      <div class="table-container">
+        <div class="card-header">
+          <h2 class="card-title">Users List</h2>
+          <div>
+            <input type="text" id="searchUser" class="form-control" placeholder="Search users..." style="display: inline-block; width: auto;">
+            <button id="searchBtn" class="btn btn-sm btn-outline">
+              <i class="fas fa-search"></i> Search
+            </button>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Address</th>
+              <th>Package</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersList">
+            <!-- Users will be loaded here -->
+            <tr>
+              <td colspan="5" class="text-center">Loading users...</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Pagination Controls -->
+        <div class="pagination-controls">
+          <button id="prevPage" class="btn btn-sm btn-outline" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+          </button>
+          <span id="pageInfo">Page 1</span>
+          <button id="nextPage" class="btn btn-sm btn-outline">
+            <i class="fas fa-chevron-right"></i> Next
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+      <p>&copy; 2023 WeCloud Internet Services. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="confirmTitle">Confirm</h3>
+        <button class="modal-close" id="confirmClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="confirmCancel">Cancel</button>
+        <button class="btn btn-danger" id="confirmOk">Delete</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Alert Modal -->
+  <div class="modal-backdrop" id="alertModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="alertTitle">Alert</h3>
+        <button class="modal-close" id="alertClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="alertMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="alertOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    // Import Firebase modules
+    import { db, collection, getDocs } from './js/firebaseConfig.js';
+    import { 
+      addUser, 
+      updateUser, 
+      deleteUser, 
+      getPaginatedUsers, 
+      getTotalUsersCount, 
+      searchUsersByName,
+      resetPagination 
+    } from './js/users.js';
+    
+    // DOM Elements
+    const userForm = document.getElementById('addUserForm');
+    const nameInput = document.getElementById('userName');
+    const phoneInput = document.getElementById('userPhone');
+    const addressInput = document.getElementById('userAddress');
+    const packageSelect = document.getElementById('userPackage');
+    const emailInput = document.getElementById('userEmail');
+    const notesInput = document.getElementById('userNotes');
+    const saveBtn = document.getElementById('saveUserBtn');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const usersList = document.getElementById('usersList');
+    const searchInput = document.getElementById('searchUser');
+    const searchBtn = document.getElementById('searchBtn');
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const pageInfoSpan = document.getElementById('pageInfo');
+    const menuToggle = document.getElementById('menuToggle');
+    const navLinks = document.getElementById('navLinks');
+    
+    // Modal elements
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmTitle = document.getElementById('confirmTitle');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmOk = document.getElementById('confirmOk');
+    const confirmCancel = document.getElementById('confirmCancel');
+    const confirmClose = document.getElementById('confirmClose');
+    
+    const alertModal = document.getElementById('alertModal');
+    const alertTitle = document.getElementById('alertTitle');
+    const alertMessage = document.getElementById('alertMessage');
+    const alertOk = document.getElementById('alertOk');
+    const alertClose = document.getElementById('alertClose');
+    
+    // Global variables
+    let currentUserId = null;
+    let packagesData = [];
+    let currentPage = 1;
+    let totalPages = 1;
+    let isSearching = false;
+    
+    // Load packages for dropdown
+    async function loadPackages() {
+      try {
+        const packagesCollection = collection(db, "packages");
+        const querySnapshot = await getDocs(packagesCollection);
+        
+        // Clear existing options except the first one
+        packageSelect.innerHTML = '<option value="">Select a package</option>';
+        
+        // Store packages data
+        packagesData = [];
+        
+        querySnapshot.forEach((doc) => {
+          const packageData = doc.data();
+          packagesData.push({
+            id: doc.id,
+            ...packageData
+          });
+          
+          // Add to dropdown
+          const option = document.createElement('option');
+          option.value = doc.id;
+          option.textContent = `${packageData.name} - ₨${packageData.price}/month`;
+          packageSelect.appendChild(option);
+        });
+      } catch (error) {
+        console.error("Error loading packages:", error);
+        showAlert("Error", "Failed to load packages: " + error.message);
+      }
+    }
+    
+    // Initialize pagination
+    async function initializePagination() {
+      try {
+        const totalUsers = await getTotalUsersCount();
+        totalPages = Math.ceil(totalUsers / 50); // 50 users per page
+        updatePaginationControls(currentPage, totalPages);
+      } catch (error) {
+        console.error("Error initializing pagination:", error);
+        showAlert("Error", "Failed to initialize pagination: " + error.message);
+      }
+    }
+    
+    // Update pagination controls
+    function updatePaginationControls(currentPage, totalPages) {
+      // Update page info
+      pageInfoSpan.textContent = `Page ${currentPage} of ${totalPages}`;
+      
+      // Update button states
+      prevPageBtn.disabled = currentPage <= 1;
+      nextPageBtn.disabled = currentPage >= totalPages;
+      
+      // Show/hide pagination controls based on total pages
+      const paginationControls = document.querySelector('.pagination-controls');
+      paginationControls.style.display = totalPages > 1 ? 'flex' : 'none';
+    }
+    
+    // Handle pagination
+    async function handlePagination(direction) {
+      if (direction === 'prev' && currentPage > 1) {
+        currentPage--;
+      } else if (direction === 'next') {
+        currentPage++;
+      }
+      
+      await loadCurrentPage();
+      }
+      
+    // Load current page of users
+    async function loadCurrentPage() {
+      try {
+        const response = await getPaginatedUsers(currentPage);
+        if (!response || !response.users) {
+          throw new Error("Failed to load users data");
+        }
+        
+        renderUsers(response.users);
+        updatePaginationControls(response.page, response.totalPages);
+      } catch (error) {
+        console.error("Error loading users:", error);
+        showAlert("Error", "Failed to load users: " + error.message);
+      }
+    }
+    
+    // Render users in the table
+    function renderUsers(users) {
+      if (!Array.isArray(users) || users.length === 0) {
+        usersList.innerHTML = '<tr><td colspan="5" class="text-center">No users found</td></tr>';
+        return;
+      }
+      
+      // Clear the table
+      usersList.innerHTML = '';
+      
+      // Add each user to the table
+      users.forEach(user => {
+        const row = document.createElement('tr');
+        
+        // Find package name
+        let packageName = 'No Package';
+        if (user.packageId) {
+          const foundPackage = packagesData.find(p => p.id === user.packageId);
+          if (foundPackage) {
+            packageName = foundPackage.name;
+          }
+        }
+        
+        row.innerHTML = `
+          <td>${user.name}</td>
+          <td>${user.phone || '-'}</td>
+          <td>${user.address}</td>
+          <td>${packageName}</td>
+          <td>
+            <button class="btn btn-sm btn-outline edit-btn" data-id="${user.id}">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-danger delete-btn" data-id="${user.id}">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        
+        usersList.appendChild(row);
+        
+        // Add event listeners to buttons
+        row.querySelector('.edit-btn').addEventListener('click', () => editUser(user));
+        row.querySelector('.delete-btn').addEventListener('click', () => confirmDeleteUser(user));
+      });
+    }
+    
+    // Handle form submission
+    async function handleFormSubmit(event) {
+      event.preventDefault();
+      
+      try {
+        // Get form values
+        const userData = {
+          name: nameInput.value.trim(),
+          phone: phoneInput.value.trim(),
+          address: addressInput.value.trim(),
+          packageId: packageSelect.value || null,
+          email: emailInput.value.trim() || null,
+          notes: notesInput.value.trim() || null
+        };
+        
+        // Validate phone number format (international format)
+        const phoneRegex = /^\d{10,15}$/;
+        if (!phoneRegex.test(userData.phone.replace(/\D/g, ''))) {
+          showAlert("Invalid Input", "Please enter a valid phone number in international format (e.g., 923001234567)");
+          return;
+        }
+        
+        // Ensure phone has international format
+        if (!userData.phone.startsWith('+')) {
+          userData.phone = '+' + userData.phone.replace(/\D/g, '');
+        }
+        
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        
+        if (currentUserId) {
+          // Update existing user
+          await updateUser(currentUserId, userData);
+          showAlert("Success", "User updated successfully!");
+        } else {
+          // Add new user
+          await addUser(userData);
+          showAlert("Success", "User added successfully!");
+        }
+        
+        // Reset form
+        userForm.reset();
+        currentUserId = null;
+        saveBtn.textContent = 'Save User';
+        cancelBtn.style.display = 'none';
+      } catch (error) {
+        console.error("Error saving user:", error);
+        showAlert("Error", "Failed to save user: " + error.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save User';
+      }
+    }
+    
+    // Edit user
+    function editUser(user) {
+      // Set form values
+      nameInput.value = user.name || '';
+      phoneInput.value = user.phone || '';
+      addressInput.value = user.address || '';
+      packageSelect.value = user.packageId || '';
+      emailInput.value = user.email || '';
+      notesInput.value = user.notes || '';
+      
+      // Update form state
+      currentUserId = user.id;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> Update User';
+      cancelBtn.style.display = 'inline-block';
+      
+      // Scroll to form
+      userForm.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    // Cancel edit
+    function cancelEdit() {
+      userForm.reset();
+      currentUserId = null;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> Save User';
+      cancelBtn.style.display = 'none';
+    }
+    
+    // Confirm delete user
+    function confirmDeleteUser(user) {
+      confirmTitle.textContent = 'Delete User';
+      confirmMessage.textContent = `Are you sure you want to delete user "${user.name}"? This action cannot be undone.`;
+      
+      // Show modal
+      confirmModal.classList.add('show');
+      
+      // Set up confirm button
+      confirmOk.onclick = async () => {
+        try {
+          confirmOk.disabled = true;
+          confirmOk.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+          
+          await deleteUser(user.id);
+          
+          // Close modal
+          confirmModal.classList.remove('show');
+          
+          showAlert("Success", "User deleted successfully!");
+        } catch (error) {
+          console.error("Error deleting user:", error);
+          showAlert("Error", "Failed to delete user: " + error.message);
+          confirmModal.classList.remove('show');
+        }
+      };
+    }
+    
+    // Search users
+    async function handleSearch() {
+      const searchTerm = searchInput.value.trim();
+      
+      if (!searchTerm) {
+        // If search is empty, reset to show all users
+        isSearching = false;
+        currentPage = 1;
+        resetPagination();
+        await loadCurrentPage();
+        
+        // Show pagination controls
+        prevPageBtn.style.display = '';
+        nextPageBtn.style.display = '';
+        pageInfoSpan.style.display = '';
+        return;
+      }
+      
+      try {
+        isSearching = true;
+        searchBtn.disabled = true;
+        searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        const results = await searchUsersByName(searchTerm);
+        renderUsers(results);
+        
+        // Hide pagination during search
+        prevPageBtn.style.display = 'none';
+        nextPageBtn.style.display = 'none';
+        pageInfoSpan.style.display = 'none';
+      } catch (error) {
+        console.error("Error searching users:", error);
+        showAlert("Error", "Failed to search users: " + error.message);
+      } finally {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = '<i class="fas fa-search"></i> Search';
+      }
+    }
+    
+    // Show alert modal
+    function showAlert(title, message) {
+      alertTitle.textContent = title;
+      alertMessage.textContent = message;
+      alertModal.classList.add('show');
+    }
+    
+    // Close modals
+    function closeConfirmModal() {
+      confirmModal.classList.remove('show');
+    }
+    
+    function closeAlertModal() {
+      alertModal.classList.remove('show');
+    }
+    
+    // Toggle mobile menu
+    function toggleMenu() {
+      navLinks.classList.toggle('active');
+    }
+    
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        await loadPackages();
+        await initializePagination();
+        await loadCurrentPage();
+      } catch (error) {
+        console.error("Error initializing page:", error);
+        showAlert("Error", "Failed to initialize page: " + error.message);
+      }
+    });
+    
+    userForm.addEventListener('submit', handleFormSubmit);
+    cancelBtn.addEventListener('click', cancelEdit);
+    searchBtn.addEventListener('click', handleSearch);
+    searchInput.addEventListener('input', () => {
+      if (!searchInput.value.trim()) {
+        // Show pagination controls when search is cleared
+        prevPageBtn.style.display = '';
+        nextPageBtn.style.display = '';
+        pageInfoSpan.style.display = '';
+        resetPagination(); // Reset pagination state when search is cleared
+      }
+    });
+    
+    confirmCancel.addEventListener('click', closeConfirmModal);
+    confirmClose.addEventListener('click', closeConfirmModal);
+    alertOk.addEventListener('click', closeAlertModal);
+    alertClose.addEventListener('click', closeAlertModal);
+    menuToggle.addEventListener('click', toggleMenu);
+    
+    prevPageBtn.addEventListener('click', async () => {
+      await handlePagination('prev');
+    });
+    
+    nextPageBtn.addEventListener('click', async () => {
+      await handlePagination('next');
+    });
+  </script>
+</body>
+</html> 

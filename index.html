@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeCloud Internet Services - Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+  <!-- Firebase Config -->
+  <script src="js/firebaseConfig.js" type="module"></script>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <img src="assets/logo.svg" alt="WeCloud Logo">
+        <span class="logo-text">WeCloud</span>
+      </div>
+      
+      <div class="menu-toggle" id="menuToggle">
+        <i class="fas fa-bars"></i>
+      </div>
+      
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html" class="active">Dashboard</a></li>
+        <li><a href="users.html">Users</a></li>
+        <li><a href="packages.html">Packages</a></li>
+        <li><a href="invoices.html">Invoices</a></li>
+        <li><a href="messages.html">Messages</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <div class="main-content">
+      <h1 class="mb-3">Dashboard</h1>
+      
+      <!-- Dashboard Cards -->
+      <div class="dashboard">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Total Users</h2>
+            <div class="card-icon">
+              <i class="fas fa-users"></i>
+            </div>
+          </div>
+          <div class="card-value" id="totalUsers">0</div>
+          <div class="card-label">Active subscribers</div>
+        </div>
+        
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Total Revenue</h2>
+            <div class="card-icon">
+              <i class="fas fa-money-bill-wave"></i>
+            </div>
+          </div>
+          <div class="card-value" id="totalRevenue">₨0.00</div>
+          <div class="card-label">From paid invoices</div>
+        </div>
+        
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Pending Invoices</h2>
+            <div class="card-icon">
+              <i class="fas fa-file-invoice-dollar"></i>
+            </div>
+          </div>
+          <div class="card-value" id="pendingInvoices">0</div>
+          <div class="card-label">Awaiting payment</div>
+        </div>
+      </div>
+      
+      <!-- Recent Invoices -->
+      <div class="table-container">
+        <div class="card-header">
+          <h2 class="card-title">Recent Invoices</h2>
+          <a href="invoices.html" class="btn btn-sm btn-outline">View All</a>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice ID</th>
+              <th>User</th>
+              <th>Package</th>
+              <th>Amount</th>
+              <th>Due Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="recentInvoices">
+            <!-- Recent invoices will be loaded here -->
+            <tr>
+              <td colspan="6" class="text-center">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Quick Actions -->
+      <div class="form-container">
+        <div class="card-header mb-3">
+          <h2 class="card-title">Quick Actions</h2>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-col">
+            <a href="users.html" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">
+              <i class="fas fa-user-plus"></i> Add New User
+            </a>
+          </div>
+          <div class="form-col">
+            <a href="packages.html" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">
+              <i class="fas fa-box"></i> Add New Package
+            </a>
+          </div>
+          <div class="form-col">
+            <a href="invoices.html" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">
+              <i class="fas fa-file-invoice"></i> Create Invoice
+            </a>
+          </div>
+        </div>
+        
+        <div class="form-row mt-3">
+          <div class="form-col">
+            <button id="sendRemindersBtn" class="btn btn-warning" style="width: 100%;">
+              <i class="fas fa-bell"></i> Send Payment Reminders
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+      <p>&copy; 2023 WeCloud Internet Services. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <!-- Alert Modal -->
+  <div class="modal-backdrop" id="alertModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalTitle">Alert</h3>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="modalMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="modalOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    // Import Firebase modules
+    import { db, collection, getDocs, query, where, onSnapshot, orderBy, limit } from './js/firebaseConfig.js';
+    import { getUsers, getUserById } from './js/users.js';
+    import { getPackages } from './js/packages.js';
+    import { sendPaymentReminders } from './js/invoices.js';
+    import { sendInvoiceNotification } from './js/whatsapp.js';
+    
+    // DOM Elements
+    const totalUsersEl = document.getElementById('totalUsers');
+    const totalRevenueEl = document.getElementById('totalRevenue');
+    const pendingInvoicesEl = document.getElementById('pendingInvoices');
+    const recentInvoicesEl = document.getElementById('recentInvoices');
+    const sendRemindersBtn = document.getElementById('sendRemindersBtn');
+    const menuToggle = document.getElementById('menuToggle');
+    const navLinks = document.getElementById('navLinks');
+    
+    // Modal elements
+    const alertModal = document.getElementById('alertModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const modalClose = document.getElementById('modalClose');
+    const modalOk = document.getElementById('modalOk');
+    
+    // Collections
+    const usersCollection = collection(db, "users");
+    const packagesCollection = collection(db, "packages");
+    const invoicesCollection = collection(db, "invoices");
+    
+    // Load dashboard data
+    async function loadDashboardData() {
+      try {
+        // Get users count
+        const usersSnapshot = await getDocs(usersCollection);
+        totalUsersEl.textContent = usersSnapshot.size;
+        
+        // Get pending invoices count
+        const pendingQuery = query(invoicesCollection, where("status", "==", "Due"));
+        const pendingSnapshot = await getDocs(pendingQuery);
+        pendingInvoicesEl.textContent = pendingSnapshot.size;
+        
+        // Get total revenue
+        const paidQuery = query(invoicesCollection, where("status", "==", "Paid"));
+        const paidSnapshot = await getDocs(paidQuery);
+        let totalRevenue = 0;
+        
+        paidSnapshot.forEach(doc => {
+          const data = doc.data();
+          totalRevenue += parseFloat(data.amount || 0);
+        });
+        
+        totalRevenueEl.textContent = '₨' + totalRevenue.toFixed(2);
+        
+        // Load recent invoices
+        loadRecentInvoices();
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+        showAlert("Error", "Failed to load dashboard data: " + error.message);
+      }
+    }
+    
+    // Load recent invoices
+    async function loadRecentInvoices() {
+      try {
+        // Get recent invoices
+        const q = query(invoicesCollection, orderBy("createdAt", "desc"), limit(5));
+        const querySnapshot = await getDocs(q);
+        const seen = new Map(); // Track seen combinations of userId + month + year
+        const invoices = [];
+        
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          // Create a unique key for this invoice based on user, month, and year
+          const key = `${data.userId}-${data.month}-${data.year}`;
+          
+          // Only add if we haven't seen this combination before
+          if (!seen.has(key)) {
+            seen.set(key, true);
+            invoices.push({
+              id: doc.id,
+              ...data
+            });
+          }
+        });
+
+        // Clear the table
+        const invoicesTable = document.getElementById('recentInvoices');
+        invoicesTable.innerHTML = `
+          <tr>
+            <th>Invoice ID</th>
+            <th>User</th>
+            <th>Package</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>Status</th>
+          </tr>
+        `;
+        
+        // Add each recent invoice to the table
+        for (const invoice of invoices) {
+          try {
+            // Get user details
+            const user = await getUsers().then(users => users.find(u => u.id === invoice.userId));
+            // Get package details
+            const pkg = await getPackages().then(packages => packages.find(p => p.id === invoice.packageId));
+            
+            // Format date
+            const dueDate = invoice.dueDate ? new Date(invoice.dueDate.seconds * 1000) : new Date();
+            const formattedDate = dueDate.toLocaleDateString();
+            
+            // Determine status class
+            let statusClass = 'badge-warning';
+            if (invoice.status === 'Paid') {
+              statusClass = 'badge-success';
+            } else if (invoice.status === 'Overdue') {
+              statusClass = 'badge-danger';
+            }
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${invoice.id.substring(0, 8)}...</td>
+              <td>${user ? user.name : 'Unknown User'}</td>
+              <td>${pkg ? pkg.name : 'Unknown Package'}</td>
+              <td>₨${parseFloat(invoice.amount).toFixed(2)}</td>
+              <td>${formattedDate}</td>
+              <td><span class="badge ${statusClass}">${invoice.status}</span></td>
+            `;
+            
+            invoicesTable.appendChild(row);
+          } catch (error) {
+            console.error("Error processing invoice:", error);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading recent invoices:", error);
+      }
+    }
+    
+    // Send payment reminders
+    async function handleSendReminders() {
+      try {
+        sendRemindersBtn.disabled = true;
+        sendRemindersBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        
+        const result = await sendPaymentReminders();
+        
+        if (result.total === 0) {
+          showAlert("No Reminders Sent", "There are no overdue invoices that require reminders.");
+        } else {
+          showAlert(
+            "Reminders Sent", 
+            `Successfully sent ${result.sent} reminders out of ${result.total} overdue invoices.`
+          );
+        }
+      } catch (error) {
+        console.error("Error sending reminders:", error);
+        showAlert("Error", "Failed to send reminders: " + error.message);
+      } finally {
+        sendRemindersBtn.disabled = false;
+        sendRemindersBtn.innerHTML = '<i class="fas fa-bell"></i> Send Payment Reminders';
+      }
+    }
+    
+    // Show alert modal
+    function showAlert(title, message) {
+      modalTitle.textContent = title;
+      modalMessage.textContent = message;
+      alertModal.classList.add('show');
+    }
+    
+    // Close alert modal
+    function closeModal() {
+      alertModal.classList.remove('show');
+    }
+    
+    // Toggle mobile menu
+    function toggleMenu() {
+      navLinks.classList.toggle('active');
+    }
+    
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', loadDashboardData);
+    sendRemindersBtn.addEventListener('click', handleSendReminders);
+    modalClose.addEventListener('click', closeModal);
+    modalOk.addEventListener('click', closeModal);
+    menuToggle.addEventListener('click', toggleMenu);
+    
+    // Set up real-time listeners for dashboard updates
+    onSnapshot(usersCollection, (snapshot) => {
+      totalUsersEl.textContent = snapshot.size;
+    });
+    
+    onSnapshot(query(invoicesCollection, where("status", "==", "Due")), (snapshot) => {
+      pendingInvoicesEl.textContent = snapshot.size;
+    });
+    
+    onSnapshot(query(invoicesCollection, orderBy("createdAt", "desc")), () => {
+      loadRecentInvoices();
+    });
+  </script>
+</body>
+</html> 
