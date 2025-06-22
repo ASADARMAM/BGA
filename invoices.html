@@ -281,8 +281,7 @@
     } from './js/invoices.js';
     import {
         sendInvoiceNotification,
-        sendInvoicePdf,
-        sendInvoiceImageWithCaption
+        sendInvoicePdf
     } from './js/whatsapp.js';
     import {
         generateInvoiceImage,
@@ -538,7 +537,7 @@
                 const imageBlob = await generateInvoiceImage({ ...invoice, status: 'Paid' });
                 console.log('Image generated, sending notification...');
                 const message = `Thank you for your payment of Rs. ${formatAmount(invoice.amount)} for your WeCloud services. Your invoice #${invoice.formattedId || invoice.id} is now marked as paid.`;
-                await sendInvoiceImageWithCaption(user.phone, imageBlob, message);
+                await sendInvoicePdf(user, invoice, imageBlob, message);
                 showAlert('Success', 'Invoice marked as paid and notification sent.');
             }
         } catch (error) {
