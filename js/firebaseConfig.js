@@ -24,7 +24,8 @@ import {
   serverTimestamp,
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager
+  persistentMultipleTabManager,
+  setDoc
 } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -70,5 +71,6 @@ export {
   arrayUnion,
   arrayRemove,
   increment,
-  serverTimestamp
+  serverTimestamp,
+  setDoc
 }; 
