@@ -177,10 +177,22 @@
   <!-- Scripts -->
   <script type="module">
     // Import Firebase modules
-    import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy } from './js/firebaseConfig.js';
-    import { listenToUsers, addUser, updateUser, deleteUser, assignPackageToUser } from './js/users.js';
-    import { getPackages } from './js/packages.js';
-    
+    import {
+        db,
+        collection,
+        getDocs
+    } from './js/firebaseConfig.js';
+    import {
+        addUser,
+        updateUser,
+        deleteUser,
+        listenToUsers,
+        searchUsersByName,
+        getPaginatedUsers,
+        getTotalUsersCount,
+        resetPagination
+    } from './js/users.js';
+
     // DOM Elements
     const userForm = document.getElementById('addUserForm');
     const nameInput = document.getElementById('userName');
@@ -199,7 +211,7 @@
     const pageInfoSpan = document.getElementById('pageInfo');
     const menuToggle = document.getElementById('menuToggle');
     const navLinks = document.getElementById('navLinks');
-    
+
     // Modal elements
     const confirmModal = document.getElementById('confirmModal');
     const confirmTitle = document.getElementById('confirmTitle');
@@ -207,372 +219,247 @@
     const confirmOk = document.getElementById('confirmOk');
     const confirmCancel = document.getElementById('confirmCancel');
     const confirmClose = document.getElementById('confirmClose');
-    
+
     const alertModal = document.getElementById('alertModal');
     const alertTitle = document.getElementById('alertTitle');
     const alertMessage = document.getElementById('alertMessage');
     const alertOk = document.getElementById('alertOk');
     const alertClose = document.getElementById('alertClose');
-    
+
     // Global variables
-    let currentUserId = null;
-    let packagesData = [];
-    let currentPage = 1;
-    let totalPages = 1;
-    let isSearching = false;
     let editingUserId = null;
+    let packagesData = [];
     let unsubscribeUsers = null;
-    
+
     // Load packages for dropdown
     async function loadPackages() {
-      try {
-        const packagesCollection = collection(db, "packages");
-        const querySnapshot = await getDocs(packagesCollection);
-        
-        // Clear existing options except the first one
-        packageSelect.innerHTML = '<option value="">Select a package</option>';
-        
-        // Store packages data
-        packagesData = [];
-        
-        querySnapshot.forEach((doc) => {
-          const packageData = doc.data();
-          packagesData.push({
-            id: doc.id,
-            ...packageData
-          });
-          
-          // Add to dropdown
-          const option = document.createElement('option');
-          option.value = doc.id;
-          option.textContent = `${packageData.name} - ₨${packageData.price}/month`;
-          packageSelect.appendChild(option);
-        });
-      } catch (error) {
-        console.error("Error loading packages:", error);
-        showAlert("Error", "Failed to load packages: " + error.message);
-      }
-    }
-    
-    // Initialize pagination
-    async function initializePagination() {
-      try {
-        const totalUsers = await getTotalUsersCount();
-        totalPages = Math.ceil(totalUsers / 50); // 50 users per page
-        updatePaginationControls(currentPage, totalPages);
-      } catch (error) {
-        console.error("Error initializing pagination:", error);
-        showAlert("Error", "Failed to initialize pagination: " + error.message);
-      }
-    }
-    
-    // Update pagination controls
-    function updatePaginationControls(currentPage, totalPages) {
-      // Update page info
-      pageInfoSpan.textContent = `Page ${currentPage} of ${totalPages}`;
-      
-      // Update button states
-      prevPageBtn.disabled = currentPage <= 1;
-      nextPageBtn.disabled = currentPage >= totalPages;
-      
-      // Show/hide pagination controls based on total pages
-      const paginationControls = document.querySelector('.pagination-controls');
-      paginationControls.style.display = totalPages > 1 ? 'flex' : 'none';
-    }
-    
-    // Handle pagination
-    async function handlePagination(direction) {
-      if (direction === 'prev' && currentPage > 1) {
-        currentPage--;
-      } else if (direction === 'next') {
-        currentPage++;
-      }
-      
-      await loadCurrentPage();
-    }
-      
-    // Load current page of users
-    async function loadCurrentPage() {
-      try {
-        const response = await getPaginatedUsers(currentPage);
-        if (!response || !response.users) {
-          throw new Error("Failed to load users data");
+        try {
+            const packagesCollection = collection(db, "packages");
+            const querySnapshot = await getDocs(packagesCollection);
+
+            packageSelect.innerHTML = '<option value="">Select a package</option>';
+            packagesData = [];
+
+            querySnapshot.forEach((doc) => {
+                const packageData = doc.data();
+                packagesData.push({ id: doc.id, ...packageData });
+                const option = document.createElement('option');
+                option.value = doc.id;
+                option.textContent = `${packageData.name} - ₨${packageData.price}/month`;
+                packageSelect.appendChild(option);
+            });
+        } catch (error) {
+            console.error("Error loading packages:", error);
+            showAlert("Error", "Failed to load packages: " + error.message);
         }
+    }
+
+    // Render users in the table
+    function renderUsers(users) {
+        if (!Array.isArray(users)) {
+            usersList.innerHTML = '<tr><td colspan="5" class="text-center">Error loading users.</td></tr>';
+            return;
+        }
+        if (users.length === 0) {
+            usersList.innerHTML = '<tr><td colspan="5" class="text-center">No users found</td></tr>';
+            return;
+        }
+
+        usersList.innerHTML = '';
+
+        users.forEach(user => {
+            const row = document.createElement('tr');
+            let packageName = 'No Package';
+            if (user.packageId && packagesData.length > 0) {
+                const foundPackage = packagesData.find(p => p.id === user.packageId);
+                if (foundPackage) {
+                    packageName = foundPackage.name;
+                }
+            }
+
+            row.innerHTML = `
+                <td>${user.name}</td>
+                <td>${user.phone || '-'}</td>
+                <td>${user.address}</td>
+                <td>${packageName}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline edit-btn" data-id="${user.id}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger delete-btn" data-id="${user.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+
+            usersList.appendChild(row);
+
+            row.querySelector('.edit-btn').addEventListener('click', () => editUser(user));
+            row.querySelector('.delete-btn').addEventListener('click', () => confirmDeleteUser(user));
+        });
+    }
+
+    // Handle form submission
+    async function handleFormSubmit(event) {
+        event.preventDefault();
+
+        const userData = {
+            name: nameInput.value.trim(),
+            phone: phoneInput.value.trim(),
+            address: addressInput.value.trim(),
+            packageId: packageSelect.value || null,
+            email: emailInput.value.trim() || null,
+            notes: notesInput.value.trim() || null
+        };
+
+        if (!userData.name || !userData.phone || !userData.address) {
+            showAlert("Validation Error", "Please fill in all required fields.");
+            return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+        try {
+            if (editingUserId) {
+                await updateUser(editingUserId, userData);
+                showAlert("Success", "User updated successfully!");
+            } else {
+                await addUser(userData);
+                showAlert("Success", "User added successfully!");
+            }
+            userForm.reset();
+            editingUserId = null;
+            saveBtn.textContent = 'Save User';
+            cancelBtn.style.display = 'none';
+        } catch (error) {
+            console.error("Error saving user:", error);
+            showAlert("Error", "Failed to save user: " + error.message);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save"></i> Save User';
+        }
+    }
+
+    // Edit user
+    function editUser(user) {
+        nameInput.value = user.name || '';
+        phoneInput.value = user.phone || '';
+        addressInput.value = user.address || '';
+        packageSelect.value = user.packageId || '';
+        emailInput.value = user.email || '';
+        notesInput.value = user.notes || '';
+
+        editingUserId = user.id;
+        document.querySelector('.form-title').textContent = 'Edit User';
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Update User';
+        cancelBtn.style.display = 'inline-block';
+        userForm.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Cancel edit
+    function cancelEdit() {
+        userForm.reset();
+        editingUserId = null;
+        document.querySelector('.form-title').textContent = 'Add New User';
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save User';
+        cancelBtn.style.display = 'none';
+    }
+
+    // Confirm delete user
+    function confirmDeleteUser(user) {
+        confirmTitle.textContent = 'Delete User';
+        confirmMessage.textContent = `Are you sure you want to delete user "${user.name}"? This action cannot be undone.`;
+        confirmModal.classList.add('show');
+
+        confirmOk.onclick = async () => {
+            try {
+                await deleteUser(user.id);
+                showAlert("Success", "User deleted successfully!");
+            } catch (error) {
+                console.error("Error deleting user:", error);
+                showAlert("Error", "Failed to delete user: " + error.message);
+            } finally {
+                closeConfirmModal();
+            }
+        };
+    }
+
+    // Search users
+    async function handleSearch() {
+        const searchTerm = searchInput.value.trim().toLowerCase();
+        if (unsubscribeUsers) unsubscribeUsers(); // Stop listening to all users
+
+        usersList.innerHTML = '<tr><td colspan="5" class="text-center">Searching...</td></tr>';
         
-        renderUsers(response.users);
-        updatePaginationControls(response.page, response.totalPages);
-      } catch (error) {
-        console.error("Error loading users:", error);
-        showAlert("Error", "Failed to load users: " + error.message);
-      }
+        if (!searchTerm) {
+            // If search is empty, re-enable the real-time listener for all users
+            unsubscribeUsers = listenToUsers(renderUsers);
+            return;
+        }
+
+        try {
+            // By convention, let's assume searchUsersByName will find the right users
+            const users = await searchUsersByName(searchTerm);
+            renderUsers(users);
+        } catch(e) {
+            renderUsers([]);
+        }
+    }
+
+    // Show alert modal
+    function showAlert(title, message) {
+        alertTitle.textContent = title;
+        alertMessage.textContent = message;
+        alertModal.classList.add('show');
+    }
+
+    // Close modals
+    function closeConfirmModal() {
+        confirmModal.classList.remove('show');
+    }
+
+    function closeAlertModal() {
+        alertModal.classList.remove('show');
+    }
+
+    // Toggle mobile menu
+    function toggleMenu() {
+        navLinks.classList.toggle('active');
     }
     
-    // Load users with a real-time listener
-    function setupUserListener() {
+    // Initial load
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadPackages();
+        usersList.innerHTML = '<tr><td colspan="5" class="text-center">Loading users...</td></tr>';
+        unsubscribeUsers = listenToUsers(renderUsers);
+    });
+    
+    // Cleanup listener on page exit
+    window.addEventListener('pagehide', () => {
         if (unsubscribeUsers) {
             unsubscribeUsers();
         }
-
-        usersList.innerHTML = '<tr><td colspan="6" class="text-center">Loading real-time users...</td></tr>';
-
-        unsubscribeUsers = listenToUsers((users) => {
-            renderUsers(users);
-        });
-    }
-    
-    // Render users in the table
-    function renderUsers(users) {
-      if (!Array.isArray(users) || users.length === 0) {
-        usersList.innerHTML = '<tr><td colspan="5" class="text-center">No users found</td></tr>';
-        return;
-      }
-      
-      // Clear the table
-      usersList.innerHTML = '';
-      
-      // Add each user to the table
-      users.forEach(user => {
-        const row = document.createElement('tr');
-        
-        // Find package name
-        let packageName = 'No Package';
-        if (user.packageId) {
-          const foundPackage = packagesData.find(p => p.id === user.packageId);
-          if (foundPackage) {
-            packageName = foundPackage.name;
-          }
-        }
-        
-        row.innerHTML = `
-          <td>${user.name}</td>
-          <td>${user.phone || '-'}</td>
-          <td>${user.address}</td>
-          <td>${packageName}</td>
-          <td>
-            <button class="btn btn-sm btn-outline edit-btn" data-id="${user.id}">
-              <i class="fas fa-edit"></i>
-            </button>
-            <button class="btn btn-sm btn-danger delete-btn" data-id="${user.id}">
-              <i class="fas fa-trash"></i>
-            </button>
-          </td>
-        `;
-        
-        usersList.appendChild(row);
-        
-        // Add event listeners to buttons
-        row.querySelector('.edit-btn').addEventListener('click', () => editUser(user));
-        row.querySelector('.delete-btn').addEventListener('click', () => confirmDeleteUser(user));
-      });
-    }
-    
-    // Handle form submission
-    async function handleFormSubmit(event) {
-      event.preventDefault();
-      
-      try {
-        // Get form values
-        const userData = {
-          name: nameInput.value.trim(),
-          phone: phoneInput.value.trim(),
-          address: addressInput.value.trim(),
-          packageId: packageSelect.value || null,
-          email: emailInput.value.trim() || null,
-          notes: notesInput.value.trim() || null
-        };
-        
-        // Validate phone number format (international format)
-        const phoneRegex = /^\d{10,15}$/;
-        if (!phoneRegex.test(userData.phone.replace(/\D/g, ''))) {
-          showAlert("Invalid Input", "Please enter a valid phone number in international format (e.g., 923001234567)");
-          return;
-        }
-        
-        // Ensure phone has international format
-        if (!userData.phone.startsWith('+')) {
-          userData.phone = '+' + userData.phone.replace(/\D/g, '');
-        }
-        
-        saveBtn.disabled = true;
-        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-        
-        if (currentUserId) {
-          // Update existing user
-          await updateUser(currentUserId, userData);
-          showAlert("Success", "User updated successfully!");
-        } else {
-          // Add new user
-          await addUser(userData);
-          showAlert("Success", "User added successfully!");
-        }
-        
-        // Reset form
-        userForm.reset();
-        currentUserId = null;
-        saveBtn.textContent = 'Save User';
-        cancelBtn.style.display = 'none';
-      } catch (error) {
-        console.error("Error saving user:", error);
-        showAlert("Error", "Failed to save user: " + error.message);
-      } finally {
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save User';
-      }
-    }
-    
-    // Edit user
-    function editUser(user) {
-      // Set form values
-      nameInput.value = user.name || '';
-      phoneInput.value = user.phone || '';
-      addressInput.value = user.address || '';
-      packageSelect.value = user.packageId || '';
-      emailInput.value = user.email || '';
-      notesInput.value = user.notes || '';
-      
-      // Update form state
-      currentUserId = user.id;
-      saveBtn.innerHTML = '<i class="fas fa-save"></i> Update User';
-      cancelBtn.style.display = 'inline-block';
-      
-      // Scroll to form
-      userForm.scrollIntoView({ behavior: 'smooth' });
-    }
-    
-    // Cancel edit
-    function cancelEdit() {
-      userForm.reset();
-      currentUserId = null;
-      saveBtn.innerHTML = '<i class="fas fa-save"></i> Save User';
-      cancelBtn.style.display = 'none';
-    }
-    
-    // Confirm delete user
-    function confirmDeleteUser(user) {
-      confirmTitle.textContent = 'Delete User';
-      confirmMessage.textContent = `Are you sure you want to delete user "${user.name}"? This action cannot be undone.`;
-      
-      // Show modal
-      confirmModal.classList.add('show');
-      
-      // Set up confirm button
-      confirmOk.onclick = async () => {
-        try {
-          confirmOk.disabled = true;
-          confirmOk.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
-          
-          await deleteUser(user.id);
-          
-          // Close modal
-          confirmModal.classList.remove('show');
-          
-          showAlert("Success", "User deleted successfully!");
-        } catch (error) {
-          console.error("Error deleting user:", error);
-          showAlert("Error", "Failed to delete user: " + error.message);
-          confirmModal.classList.remove('show');
-        }
-      };
-    }
-    
-    // Search users
-    async function handleSearch() {
-      const searchTerm = searchInput.value.trim();
-      
-      if (!searchTerm) {
-        // If search is empty, reset to show all users
-        isSearching = false;
-        currentPage = 1;
-        resetPagination();
-        await loadCurrentPage();
-        
-        // Show pagination controls
-        prevPageBtn.style.display = '';
-        nextPageBtn.style.display = '';
-        pageInfoSpan.style.display = '';
-        return;
-      }
-      
-      try {
-        isSearching = true;
-        searchBtn.disabled = true;
-        searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        
-        const results = await searchUsersByName(searchTerm);
-        renderUsers(results);
-        
-        // Hide pagination during search
-        prevPageBtn.style.display = 'none';
-        nextPageBtn.style.display = 'none';
-        pageInfoSpan.style.display = 'none';
-      } catch (error) {
-        console.error("Error searching users:", error);
-        showAlert("Error", "Failed to search users: " + error.message);
-      } finally {
-        searchBtn.disabled = false;
-        searchBtn.innerHTML = '<i class="fas fa-search"></i> Search';
-      }
-    }
-    
-    // Show alert modal
-    function showAlert(title, message) {
-      alertTitle.textContent = title;
-      alertMessage.textContent = message;
-      alertModal.classList.add('show');
-    }
-    
-    // Close modals
-    function closeConfirmModal() {
-      confirmModal.classList.remove('show');
-    }
-    
-    function closeAlertModal() {
-      alertModal.classList.remove('show');
-    }
-    
-    // Toggle mobile menu
-    function toggleMenu() {
-      navLinks.classList.toggle('active');
-    }
-    
-    // Event listeners
-    document.addEventListener('DOMContentLoaded', () => {
-      loadPackages();
-      setupUserListener();
     });
-    
+
+    // Event listeners
     userForm.addEventListener('submit', handleFormSubmit);
     cancelBtn.addEventListener('click', cancelEdit);
     searchBtn.addEventListener('click', handleSearch);
-    searchInput.addEventListener('input', () => {
-      if (!searchInput.value.trim()) {
-        // Show pagination controls when search is cleared
-        prevPageBtn.style.display = '';
-        nextPageBtn.style.display = '';
-        pageInfoSpan.style.display = '';
-        resetPagination(); // Reset pagination state when search is cleared
-      }
+    searchInput.addEventListener('keyup', (event) => {
+        if (event.key === 'Enter') {
+            handleSearch();
+        } else if (searchInput.value.trim() === '') {
+            handleSearch(); // Re-inits the listener
+        }
     });
-    
+
     confirmCancel.addEventListener('click', closeConfirmModal);
     confirmClose.addEventListener('click', closeConfirmModal);
     alertOk.addEventListener('click', closeAlertModal);
     alertClose.addEventListener('click', closeAlertModal);
     menuToggle.addEventListener('click', toggleMenu);
-    
-    prevPageBtn.addEventListener('click', async () => {
-      await handlePagination('prev');
-    });
-    
-    nextPageBtn.addEventListener('click', async () => {
-      await handlePagination('next');
-    });
 
-    window.addEventListener('unload', () => {
-        if (unsubscribeUsers) {
-            unsubscribeUsers();
-        }
-    });
   </script>
 </body>
 </html> 

@@ -390,7 +390,8 @@
       setupPackageListener();
     });
 
-    window.addEventListener('unload', () => {
+    // Cleanup listener on page exit
+    window.addEventListener('pagehide', () => {
       if (unsubscribePackages) {
         unsubscribePackages();
       }

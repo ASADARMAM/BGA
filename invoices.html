@@ -1267,11 +1267,11 @@
       setDefaultDueDate();
     });
     
-    // Clean up listener when page is unloaded
-    window.addEventListener('unload', () => {
-      if (unsubscribeInvoices) {
-        unsubscribeInvoices();
-      }
+    // Cleanup listener on page exit
+    window.addEventListener('pagehide', () => {
+        if (unsubscribeInvoices) {
+            unsubscribeInvoices();
+        }
     });
     
     invoiceForm.addEventListener('submit', handleFormSubmit);
