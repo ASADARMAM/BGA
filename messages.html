@@ -262,6 +262,7 @@
     import { sendWhatsAppAlert, testWhatsAppConnection, serverStatus, authenticateWithQR, showSwaggerQRInstructions } from './js/whatsapp.js';
     import { getUsers } from './js/users.js';
     import { sendBroadcastAlert } from './js/whatsapp.js';
+    import { db, doc, getDoc, setDoc } from './js/firebaseConfig.js';
     
     // DOM Elements
     const messageForm = document.getElementById('messageTemplatesForm');
@@ -299,80 +300,177 @@
     
     // Default templates
     const defaultTemplates = {
-      invoice: `Dear {userName},
+      invoice: `*📋 NEW INVOICE NOTIFICATION*
+━━━━━━━━━━━━━━━━━━━━━
 
-Your WeCloud Internet Services invoice #{invoiceId} has been generated for {invoiceMonth} {invoiceYear}.
+Dear *{userName}*,
 
-Package: {packageName}
-Amount: ₨{amount}
-Due Date: {dueDate}
+Your WeCloud Internet Services invoice has been generated.
 
-Please make your payment before the due date to avoid service interruption.
+*📊 INVOICE DETAILS*
+━━━━━━━━━━━━
+• *Invoice ID:* #{invoiceId}
+• *Package:* {packageName} ({packageSpeed})
+• *Amount Due:* Rs. {invoiceAmount}
+• *Due Date:* {dueDate}
+• *Billing Period:* {invoiceMonth} {invoiceYear}
 
-Thank you,
-WeCloud Internet Services`,
+*🔗 VIEW INVOICE*
+━━━━━━━━━━━━
+Click here to view your invoice:
+{invoiceLink}
+
+Please make payment before the due date to avoid service interruption.
+
+*💳 Payment Methods*
+━━━━━━━━━━━━
+• EasyPaisa: 0300-1234567
+• JazzCash: 0300-1234567
+• Bank Transfer: (contact for details)
+
+Thank you for choosing WeCloud Internet Services! 🌟
+
+Need help? Contact us:
+📞 0300-1234567`,
       
-      overdue: `URGENT REMINDER: Dear {userName},
+      paidInvoice: `*✨ PAYMENT CONFIRMATION ✨*
+━━━━━━━━━━━━━━━━━━━━━
 
-Your WeCloud Internet Services invoice #{invoiceId} for {invoiceMonth} {invoiceYear} is OVERDUE.
-The payment was due on {dueDate}.
+Dear *{userName}*,
 
-Package: {packageName}
-Amount: ₨{amount}
+Thank you! We have successfully received your payment.
 
-Please make your payment IMMEDIATELY to avoid service disconnection.
+*🧾 PAYMENT DETAILS*
+━━━━━━━━━━━━
+• *Invoice ID:* #{invoiceId}
+• *Package:* {packageName} ({packageSpeed})
+• *Amount Paid:* Rs. {invoiceAmount}
+• *Period:* {invoiceMonth} {invoiceYear}
+• *Status:* ✅ *PAID*
 
-Thank you,
-WeCloud Internet Services`,
+*🔗 VIEW RECEIPT*
+━━━━━━━━━━━━
+Your receipt is available here:
+{invoiceLink}
+
+We value your business and look forward to providing you with excellent internet service.
+
+Best regards,
+WeCloud Internet Services 🚀
+
+Questions about your service?
+📞 0300-1234567`,
       
-      broadcast: `IMPORTANT NOTICE: Dear {userName},
+      unpaid: `*⚠️ PAYMENT REMINDER*
+━━━━━━━━━━━━━━━━━━━━━
+
+Dear *{userName}*,
+
+This is a reminder that your invoice #{invoiceId} is OVERDUE.
+
+*📊 INVOICE DETAILS*
+━━━━━━━━━━━━
+• *Invoice ID:* #{invoiceId}
+• *Package:* {packageName} ({packageSpeed})
+• *Amount Due:* Rs. {invoiceAmount}
+• *Due Date:* {dueDate} (OVERDUE)
+• *Period:* {invoiceMonth} {invoiceYear}
+
+*⚡ IMPORTANT*
+━━━━━━━━━━━━
+Please make your payment immediately to avoid service interruption.
+
+*🔗 VIEW INVOICE*
+━━━━━━━━━━━━
+Click here to view your invoice:
+{invoiceLink}
+
+*💳 Quick Payment Options*
+━━━━━━━━━━━━
+• EasyPaisa: 0300-1234567
+• JazzCash: 0300-1234567
+• Bank Transfer: (contact for details)
+
+If you have already made the payment, please share the payment proof with us.
+
+WeCloud Internet Services ⚡
+📞 0300-1234567`,
+      
+      broadcast: `*📢 IMPORTANT NOTICE*
+━━━━━━━━━━━━━━━━━━━━━
+
+Dear *{userName}*,
 
 {alertMessage}
 
-Thank you for your understanding.
-WeCloud Internet Services`,
-      
-      paidInvoice: `*PAYMENT CONFIRMATION*
+*📞 Need Support?*
+━━━━━━━━━━━━
+Contact us at: 0300-1234567
+WhatsApp: 0300-1234567
 
-Dear {userName},
-
-We have received your payment of {amount} for invoice #{invoiceId}.
-
-*Payment Details:*
-- Amount: {amount}
-- Date: {paymentDate}
-- Status: Paid
-
-Thank you for your prompt payment!
-
-WeCloud Internet Services`
+Thank you for choosing WeCloud Internet Services! 🌟`
     };
     
-    // Load templates from localStorage or use defaults
-    function loadTemplates() {
-      invoiceTemplate.value = localStorage.getItem('invoiceTemplate') || defaultTemplates.invoice;
-      paidInvoiceTemplate.value = localStorage.getItem('paidInvoiceTemplate') || defaultTemplates.paidInvoice;
-      overdueTemplate.value = localStorage.getItem('overdueTemplate') || defaultTemplates.overdue;
-      broadcastTemplate.value = localStorage.getItem('broadcastTemplate') || defaultTemplates.broadcast;
+    // Load templates from Firestore
+    async function loadTemplates() {
+      try {
+        const templates = await Promise.all([
+          getDoc(doc(db, "message_templates", "due")),
+          getDoc(doc(db, "message_templates", "paid")),
+          getDoc(doc(db, "message_templates", "unpaid")),
+          getDoc(doc(db, "message_templates", "broadcast"))
+        ]);
+
+        invoiceTemplate.value = templates[0].exists() ? templates[0].data().content : defaultTemplates.invoice;
+        paidInvoiceTemplate.value = templates[1].exists() ? templates[1].data().content : defaultTemplates.paidInvoice;
+        overdueTemplate.value = templates[2].exists() ? templates[2].data().content : defaultTemplates.unpaid;
+        broadcastTemplate.value = templates[3].exists() ? templates[3].data().content : defaultTemplates.broadcast;
+      } catch (error) {
+        console.error('Error loading templates:', error);
+        showAlert('Error', 'Failed to load templates from database');
+        
+        // Fall back to defaults
+        resetTemplates();
+      }
     }
     
-    // Save templates to localStorage
-    function saveTemplates(event) {
+    // Save templates to Firestore
+    async function saveTemplates(event) {
       event.preventDefault();
       
-      localStorage.setItem('invoiceTemplate', invoiceTemplate.value);
-      localStorage.setItem('paidInvoiceTemplate', paidInvoiceTemplate.value);
-      localStorage.setItem('overdueTemplate', overdueTemplate.value);
-      localStorage.setItem('broadcastTemplate', broadcastTemplate.value);
-      
-      showAlert('Success', 'Message templates saved successfully!');
+      try {
+        // Save all templates
+        await Promise.all([
+          setDoc(doc(db, "message_templates", "due"), {
+            content: invoiceTemplate.value,
+            updatedAt: new Date()
+          }),
+          setDoc(doc(db, "message_templates", "paid"), {
+            content: paidInvoiceTemplate.value,
+            updatedAt: new Date()
+          }),
+          setDoc(doc(db, "message_templates", "unpaid"), {
+            content: overdueTemplate.value,
+            updatedAt: new Date()
+          }),
+          setDoc(doc(db, "message_templates", "broadcast"), {
+            content: broadcastTemplate.value,
+            updatedAt: new Date()
+          })
+        ]);
+        
+        showAlert('Success', 'Message templates saved successfully!');
+      } catch (error) {
+        console.error('Error saving templates:', error);
+        showAlert('Error', 'Failed to save templates: ' + error.message);
+      }
     }
     
     // Reset templates to default
     function resetTemplates() {
       invoiceTemplate.value = defaultTemplates.invoice;
       paidInvoiceTemplate.value = defaultTemplates.paidInvoice;
-      overdueTemplate.value = defaultTemplates.overdue;
+      overdueTemplate.value = defaultTemplates.unpaid;
       broadcastTemplate.value = defaultTemplates.broadcast;
     }
     

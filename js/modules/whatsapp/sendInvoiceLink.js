@@ -4,8 +4,11 @@ import { getInvoiceById } from '../invoices/getInvoice.js';
 import { getUserById } from '../../users.js';
 import { db, doc, getDoc, setDoc, collection, query, where, getDocs } from '../../firebaseConfig.js';
 
-// Replace with your GitHub Pages URL
-const INVOICE_BASE_URL = "https://asadarmam.github.io/wecloud-invoices/view.html?id=";
+// Function to generate invoice link
+function generateInvoiceLink(invoiceId) {
+  // Use relative path instead of GitHub Pages URL
+  return `view-invoice.html?id=${invoiceId}`;
+}
 
 // Get templates from Firestore
 async function getMessageTemplate(type) {
@@ -33,12 +36,6 @@ async function saveMessageTemplate(type, content) {
     console.error('Error saving template to Firestore:', error);
     return false;
   }
-}
-
-// Function to generate invoice link
-function generateInvoiceLink(invoiceId) {
-  // Use relative path instead of GitHub Pages URL
-  return `view-invoice.html?id=${invoiceId}`;
 }
 
 // Default templates as fallback
@@ -422,4 +419,4 @@ function formatDate(timestamp) {
 }
 
 // Export the save function so it can be used from messages.html
-export { saveMessageTemplate }; 
+export { saveMessageTemplate };
