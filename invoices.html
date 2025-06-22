@@ -255,7 +255,7 @@
     import { db, collection, addDoc, getDocs, doc, updateDoc, query, where, onSnapshot, orderBy, limit, startAfter, getDoc } from './js/firebaseConfig.js';
     import { getUsers } from './js/users.js';
     import { getPackages } from './js/packages.js';
-    import { getInvoices, createInvoice, updateInvoice, deleteInvoice, generateInvoiceId } from './js/invoices.js';
+    import { getInvoices, addInvoice, updateInvoice, deleteInvoice } from './js/invoices.js';
     import { sendInvoiceNotification, sendInvoicePdf, sendPaymentReminder, sendBroadcastAlert, sendPaidInvoiceNotification } from './js/whatsapp.js';
     import { generateInvoiceImage, generateFormattedInvoiceId } from './js/invoiceGenerator.js';
     
