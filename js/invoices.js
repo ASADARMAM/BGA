@@ -1,5 +1,5 @@
 // Invoices management module
-import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, where, getDoc, orderBy, limit, startAfter, writeBatch, runTransaction, serverTimestamp, increment } from './firebaseConfig.js';
+import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, where, getDoc, orderBy, limit, startAfter, writeBatch, runTransaction, serverTimestamp, increment, setDoc } from './firebaseConfig.js';
 import { sendInvoiceNotification, sendPaymentReminder, sendInvoicePdf } from './whatsapp.js';
 import { getUserById } from './users.js';
 import { getPackageById } from './packages.js';
@@ -53,12 +53,14 @@ export async function addInvoice(invoiceData, sendNotification = true) {
     invoiceData.month = dueDate.getMonth();
     invoiceData.year = dueDate.getFullYear();
 
-    // Generate a user-friendly, formatted ID
-    invoiceData.formattedId = await generateFormattedInvoiceId();
+    // Generate the user-friendly, formatted ID which will also be the document ID
+    const formattedId = await generateFormattedInvoiceId();
+    invoiceData.formattedId = formattedId;
 
-    // Add the document directly to the main "invoices" collection
-    const docRef = await addDoc(invoicesCollection, invoiceData);
-    console.log("Invoice added with ID: ", docRef.id);
+    // Use the formattedId as the document ID in Firestore
+    const invoiceDocRef = doc(invoicesCollection, formattedId);
+    await setDoc(invoiceDocRef, invoiceData);
+    console.log("Invoice added with custom ID: ", formattedId);
 
     // Update invoice stats atomically
     try {
@@ -100,7 +102,7 @@ export async function addInvoice(invoiceData, sendNotification = true) {
         
         // Prepare invoice data for notification
         const invoiceForNotification = {
-          id: docRef.id,
+          id: formattedId,
           amount: invoiceData.amount,
           dueDate: invoiceData.dueDate,
           packageName: packageInfo.name,
@@ -116,7 +118,7 @@ export async function addInvoice(invoiceData, sendNotification = true) {
       }
     }
     
-    return docRef;
+    return invoiceDocRef;
   } catch (error) {
     console.error("Error adding invoice: ", error);
     throw error;
