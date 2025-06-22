@@ -281,7 +281,8 @@
     } from './js/invoices.js';
     import {
         sendInvoiceNotification,
-        sendInvoicePdf
+        sendInvoicePdf,
+        formatMessage
     } from './js/whatsapp.js';
     import {
         generateInvoiceImage,
@@ -456,7 +457,7 @@
                 packageId: packageSelect.value,
                 amount: parseFloat(amountInput.value),
                 dueDate: new Date(dueDateInput.value),
-                status: statusSelect.value,
+                status: editingInvoiceId ? statusSelect.value : 'Due', // Force 'Due' for new invoices
                 // Add month and year for filtering
                 month: new Date(dueDateInput.value).getMonth(),
                 year: new Date(dueDateInput.value).getFullYear()
@@ -536,7 +537,10 @@
                 console.log('Generating paid invoice image...');
                 const imageBlob = await generateInvoiceImage({ ...invoice, status: 'Paid' });
                 console.log('Image generated, sending notification...');
-                const message = `Thank you for your payment of Rs. ${formatAmount(invoice.amount)} for your WeCloud services. Your invoice #${invoice.formattedId || invoice.id} is now marked as paid.`;
+                const message = await formatMessage(user, 'PAYMENT_CONFIRMATION', {
+                    ...invoice,
+                    paymentDate: new Date()
+                });
                 await sendInvoicePdf(user, invoice, imageBlob, message);
                 showAlert('Success', 'Invoice marked as paid and notification sent.');
             }

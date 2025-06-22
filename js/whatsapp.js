@@ -52,16 +52,28 @@ Please make payment before the due date to avoid service interruption.
 
 Thank you for choosing WeCloud Internet Services! 🌟`,
 
-    PAYMENT_CONFIRMATION: `*💰 PAYMENT CONFIRMATION*
+    PAYMENT_CONFIRMATION: `*✨ PAYMENT CONFIRMATION ✨*
 ━━━━━━━━━━━━━━━━━━━━━
 
 Dear *{userName}*,
 
-We have received your payment of *{amount}* for invoice *#{formattedId}*.
+This is to confirm that we have successfully received your payment. Thank you!
 
-Thank you for your business! 🌟
+*🧾 PAYMENT DETAILS*
+━━━━━━━━━━━━
+• *Invoice ID:* #{formattedId}
+• *Amount Paid:* {amount}
+• *Payment Date:* {paymentDate}
 
-WeCloud Internet Services`,
+Your account is now up to date. No further action is required.
+
+You can view your updated invoice here:
+{invoiceLink}
+
+We appreciate your prompt payment and value your business.
+
+Sincerely,
+The WeCloud Team 🚀`,
 
     PAYMENT_REMINDER: `*⚠️ PAYMENT REMINDER*
 ━━━━━━━━━━━━━━━━━━━━━
@@ -805,7 +817,8 @@ async function sendPaymentConfirmation(user, invoice) {
         const message = MESSAGE_TEMPLATES.PAYMENT_CONFIRMATION
             .replace('{userName}', user.name)
             .replace('{formattedId}', invoice.formattedId)
-            .replace('{amount}', formatAmount(invoice.amount));
+            .replace('{amount}', formatAmount(invoice.amount))
+            .replace('{paymentDate}', formatDate(new Date()));
 
         await sendMessage(user.phone, message);
     } catch (error) {
@@ -870,8 +883,12 @@ async function formatMessage(user, type, data) {
         if (data.dueDate) {
             template = template.replace(/{dueDate}/g, formatDate(data.dueDate));
         }
+        // Ensure paymentDate is formatted correctly
+        if (data.paymentDate) {
+            template = template.replace(/{paymentDate}/g, formatDate(data.paymentDate));
+        }
         // Replace other invoice data
-        template = template.replace(/{invoiceLink}/g, data.invoiceLink || '');
+        template = template.replace(/{invoiceLink}/g, data.id ? generateInvoiceLink(data.id) : '');
         template = template.replace(/{formattedId}/g, data.formattedId || data.id || '');
         template = template.replace(/{message}/g, data.message || '');
     }
