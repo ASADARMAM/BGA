@@ -148,65 +148,8 @@ export async function addInvoice(invoiceData, sendNotification = true) {
  * Get all invoices across all shards
  * @returns {Promise} - Promise with array of invoices
  */
-export async function getInvoices() {
-  try {
-    // Check cache first
-    if (cache.invoices.data.has('all') && 
-        cache.invoices.timestamp && 
-        Date.now() - cache.invoices.timestamp < CACHE_DURATION) {
-      console.log("Returning invoices from cache");
-      return cache.invoices.data.get('all');
-    }
-    
-    // Get current year and past 2 years for most relevant invoices
-    const currentYear = new Date().getFullYear();
-    const years = [currentYear, currentYear - 1, currentYear - 2];
-    
-    const invoices = [];
-    const seen = new Map(); // Track seen combinations of userId + month + year
-    
-    // Query each year-month shard for the past 3 years (36 months)
-    for (const year of years) {
-      for (let month = 0; month < 12; month++) {
-        try {
-          const shardCollection = getInvoiceShardCollection(year, month);
-          const q = query(shardCollection, orderBy("createdAt", "desc"));
-          const querySnapshot = await getDocs(q);
-    
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      // Create a unique key for this invoice based on user, month, and year
-      const key = `${data.userId}-${data.month}-${data.year}`;
-      
-      if (seen.has(key)) {
-        // We found a duplicate - keep the newer one (we're already sorted by createdAt desc)
-              console.warn(`Found duplicate invoice for ${key}, keeping newer one`);
-      } else {
-        // This is the first time we've seen this combination
-        seen.set(key, doc);
-        invoices.push({
-          id: doc.id,
-          ...data
-        });
-      }
-    });
-        } catch (error) {
-          console.error(`Error getting invoices for ${year}-${month}:`, error);
-          // Continue with other shards
-        }
-      }
-    }
-    
-    // Update cache
-    cache.invoices.data.set('all', invoices);
-    cache.invoices.timestamp = Date.now();
-    
-    return invoices;
-  } catch (error) {
-    console.error("Error getting invoices: ", error);
-    throw error;
-  }
-}
+// This function is being removed to prevent duplication. 
+// The paginated version `getInvoices(filters, lastVisible)` should be used instead.
 
 /**
  * Update an invoice
