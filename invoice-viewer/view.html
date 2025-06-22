@@ -34,6 +34,7 @@
       background-color: #fff;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
       border-radius: 10px;
+      position: relative;
     }
     
     .invoice-header {
@@ -381,12 +382,7 @@
           return;
         }
         
-        let invoice = { id: invoiceDoc.id, ...invoiceDoc.data() };
-        
-        // Ensure invoice has a date
-        if (!invoice.date) {
-          invoice.date = new Date();
-        }
+        const invoice = { id: invoiceDoc.id, ...invoiceDoc.data() };
         
         // Get user data
         const userDoc = await db.collection('users').doc(invoice.userId).get();
@@ -404,16 +400,6 @@
         }
         const packageData = { id: packageDoc.id, ...packageDoc.data() };
         
-        // Generate formatted invoice ID if not present
-        if (!invoice.formattedId) {
-          const currentDate = new Date();
-          const year = currentDate.getFullYear();
-          const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-          const code = "MEGR"; // Fixed code as per example
-          const sequence = String(Math.floor(1000 + Math.random() * 9000)).substring(1);
-          invoice.formattedId = `${year}${month}${code}${sequence}`;
-        }
-        
         // Update UI with invoice data
         updateInvoiceUI(invoice, user, packageData);
         
@@ -428,38 +414,27 @@
     
     // Update UI with invoice data
     function updateInvoiceUI(invoice, user, packageData) {
-      // Update invoice details
-      // Format the invoice ID to match the required format: YYYYMMCODE####
-      const currentDate = new Date();
-      const year = currentDate.getFullYear();
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      // Use formattedId if available, otherwise use the regular ID.
+      invoiceNumber.textContent = invoice.formattedId || invoice.id;
       
-      // Use formattedId if available, otherwise generate one
-      if (invoice.formattedId) {
-        invoiceNumber.textContent = invoice.formattedId;
-      } else {
-        // Generate a code similar to the example: 202506MEGR0003
-        const code = "MEGR"; // Fixed code as per example
-        const sequence = String(Math.floor(1000 + Math.random() * 9000)).substring(1); // Random 4-digit number
-        invoiceNumber.textContent = `${year}${month}${code}${sequence}`;
+      // Ensure Invoice Date is never 'N/A'. Default to today if data is missing/invalid.
+      let invoiceDateText = formatDate(invoice.date);
+      if (invoiceDateText === 'N/A') {
+        invoiceDateText = formatDate(new Date());
       }
+      invoiceDate.textContent = invoiceDateText;
       
-      // Make sure invoice date is never N/A
-      const invoiceDateValue = invoice.date ? formatDate(invoice.date) : formatDate(new Date());
-      invoiceDate.textContent = invoiceDateValue;
-      
+      // Due Date
       dueDate.textContent = formatDate(invoice.dueDate);
       
-      // Update status
+      // Update status and PAID stamp
       if (invoice.status === 'Paid') {
         invoiceStatus.textContent = 'PAID';
         invoiceStatus.className = 'status-paid';
-        // Show the PAID stamp
         document.getElementById('paidStamp').style.display = 'block';
       } else {
         invoiceStatus.textContent = 'UNPAID';
         invoiceStatus.className = 'status-unpaid';
-        // Hide the PAID stamp
         document.getElementById('paidStamp').style.display = 'none';
       }
       
@@ -469,38 +444,42 @@
       customerEmail.textContent = user.email || 'N/A';
       customerAddress.textContent = user.address || 'N/A';
       
-      // Update package details
+      // Update package details and ensure billing period is not 'N/A'
       packageName.textContent = packageData.name;
-      
-      // Make sure billing period never shows N/A
-      const startDate = invoice.date ? formatDate(invoice.date) : formatDate(new Date());
-      const endDate = formatDate(invoice.dueDate);
-      billingPeriod.textContent = `${startDate} - ${endDate}`;
-      
+      const endDateText = formatDate(invoice.dueDate);
+      billingPeriod.textContent = `${invoiceDateText} - ${endDateText}`;
       packageAmount.textContent = formatCurrency(invoice.amount);
       
       // Update total
       totalAmount.textContent = formatCurrency(invoice.amount);
     }
     
-    // Format date
+    // Format date robustly
     function formatDate(timestamp) {
-      if (!timestamp) return 'N/A';
-      
-      let date;
-      if (timestamp.seconds) {
-        // Handle Firestore timestamp
-        date = new Date(timestamp.seconds * 1000);
-      } else {
-        date = new Date(timestamp);
+      try {
+        if (!timestamp) return 'N/A';
+
+        let date;
+        if (timestamp.seconds) {
+          date = new Date(timestamp.seconds * 1000); // Firestore timestamp
+        } else {
+          date = new Date(timestamp);
+        }
+
+        if (isNaN(date.getTime())) {
+          return 'N/A'; // Invalid date
+        }
+        
+        // Format as 'Month Day, Year'
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      } catch (error) {
+        console.error("Error formatting date:", timestamp, error);
+        return 'N/A';
       }
-      
-      // Format as DD/MM/YYYY as shown in the example
-      const day = date.getDate().toString().padStart(2, '0');
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const year = date.getFullYear();
-      
-      return `${day}/${month}/${year}`;
     }
     
     // Format currency
