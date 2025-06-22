@@ -1,5 +1,5 @@
 // Invoices management module
-import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, where, getDoc, orderBy, limit, startAfter, writeBatch, runTransaction, serverTimestamp, increment, setDoc } from './firebaseConfig.js';
+import { db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, where, getDoc, orderBy, limit, startAfter, writeBatch, runTransaction, serverTimestamp, increment } from './firebaseConfig.js';
 import { sendInvoiceNotification, sendPaymentReminder, sendInvoicePdf } from './whatsapp.js';
 import { getUserById } from './users.js';
 import { getPackageById } from './packages.js';
@@ -44,24 +44,43 @@ const cache = {
  */
 export async function addInvoice(invoiceData, sendNotification = true) {
   try {
-    // Add timestamps and default status
-    invoiceData.createdAt = serverTimestamp();
-    invoiceData.status = invoiceData.status || 'Due';
-
-    // Ensure month and year are set correctly from the due date
-    const dueDate = new Date(invoiceData.dueDate);
-    invoiceData.month = dueDate.getMonth();
-    invoiceData.year = dueDate.getFullYear();
-
-    // Generate the user-friendly, formatted ID which will also be the document ID
-    const formattedId = await generateFormattedInvoiceId();
-    invoiceData.formattedId = formattedId;
-
-    // Use the formattedId as the document ID in Firestore
-    const invoiceDocRef = doc(invoicesCollection, formattedId);
-    await setDoc(invoiceDocRef, invoiceData);
-    console.log("Invoice added with custom ID: ", formattedId);
-
+    // Add timestamps
+    invoiceData.createdAt = serverTimestamp(); // Use server timestamp for consistency
+    invoiceData.status = invoiceData.status || 'Due'; // Default status
+    
+    // Add month and year if not provided
+    const now = new Date();
+    if (invoiceData.month === undefined) {
+      invoiceData.month = now.getMonth();
+    }
+    if (invoiceData.year === undefined) {
+      invoiceData.year = now.getFullYear();
+    }
+    
+    // Get the appropriate shard collection
+    const shardCollection = getInvoiceShardCollection(invoiceData.year, invoiceData.month);
+    
+    // Check for existing invoice for this user in this month/year
+    const q = query(
+      shardCollection,
+      where("userId", "==", invoiceData.userId)
+    );
+    
+    const existingInvoices = await getDocs(q);
+    if (!existingInvoices.empty) {
+      console.warn(`Invoice already exists for user ${invoiceData.userId} for ${invoiceData.month}/${invoiceData.year}`);
+      // Return the existing invoice
+      const existingDoc = existingInvoices.docs[0];
+      return {
+        id: existingDoc.id,
+        ...existingDoc.data()
+      };
+    }
+    
+    // Add the document to Firestore
+    const docRef = await addDoc(shardCollection, invoiceData);
+    console.log("Invoice added with ID: ", docRef.id);
+    
     // Update invoice stats atomically
     try {
       const statsRef = doc(invoiceStatsCollection, `${invoiceData.year}_${invoiceData.month}`);
@@ -102,7 +121,7 @@ export async function addInvoice(invoiceData, sendNotification = true) {
         
         // Prepare invoice data for notification
         const invoiceForNotification = {
-          id: formattedId,
+          id: docRef.id,
           amount: invoiceData.amount,
           dueDate: invoiceData.dueDate,
           packageName: packageInfo.name,
@@ -118,7 +137,7 @@ export async function addInvoice(invoiceData, sendNotification = true) {
       }
     }
     
-    return invoiceDocRef;
+    return docRef;
   } catch (error) {
     console.error("Error adding invoice: ", error);
     throw error;
