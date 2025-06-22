@@ -271,14 +271,14 @@
         startAfter,
         getDoc,
         setDoc
-    } from `./js/firebaseConfig.js?v=${cacheBuster}`;
+    } from './js/firebaseConfig.js?v=' + cacheBuster;
     import {
         getUsers
-    } from `./js/users.js?v=${cacheBuster}`;
+    } from './js/users.js?v=' + cacheBuster;
     import {
         getPackages,
         getPackageById
-    } from `./js/packages.js?v=${cacheBuster}`;
+    } from './js/packages.js?v=' + cacheBuster;
     import {
         listenToInvoices,
         addInvoice,
@@ -286,17 +286,17 @@
         deleteInvoice,
         generateInvoicesForAllUsers as generateAll,
         sendPaymentReminders as sendAllReminders
-    } from `./js/invoices.js?v=${cacheBuster}`;
+    } from './js/invoices.js?v=' + cacheBuster;
     import {
         sendInvoiceNotification,
         sendInvoicePdf,
         formatMessage
-    } from `./js/whatsapp.js?v=${cacheBuster}`;
+    } from './js/whatsapp.js?v=' + cacheBuster;
     import {
         generateInvoiceImage,
         generateFormattedInvoiceId,
         formatAmount
-    } from `./js/invoiceGenerator.js?v=${cacheBuster}`;
+    } from './js/invoiceGenerator.js?v=' + cacheBuster;
 
     // DOM Elements
     const invoiceForm = document.getElementById('createInvoiceForm');
