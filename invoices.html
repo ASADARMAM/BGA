@@ -16,6 +16,18 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  
+  <!-- Force page reload if needed -->
+  <script>
+    // Check if we've already reloaded for this session
+    if (!sessionStorage.getItem('reloaded')) {
+      sessionStorage.setItem('reloaded', 'true');
+      // Force a hard reload after a short delay
+      setTimeout(function() {
+        location.reload(true);
+      }, 100);
+    }
+  </script>
 </head>
 <body>
   <!-- Navigation -->
@@ -250,13 +262,18 @@
     </div>
   </div>
 
-  <!-- Scripts -->
+  <!-- Load module scripts with cache busting -->
+  <script src="js/firebaseConfig.js?v=20240625001"></script>
+  <script src="js/users.js?v=20240625001"></script>
+  <script src="js/packages.js?v=20240625001"></script>
+  <script src="js/invoices.js?v=20240625001"></script>
+  <script src="js/whatsapp.js?v=20240625001"></script>
+  <script src="js/invoiceGenerator.js?v=20240625001"></script>
+  
+  <!-- Main script -->
   <script type="module">
-    // Add cache-busting timestamp
-    const cacheBuster = Date.now();
-    
-    // Import Firebase modules with cache busting
-    import {
+    // Import from window global objects
+    const {
         db,
         collection,
         addDoc,
@@ -271,32 +288,37 @@
         startAfter,
         getDoc,
         setDoc
-    } from './js/firebaseConfig.js?v=' + cacheBuster;
-    import {
+    } = window;
+    
+    const {
         getUsers
-    } from './js/users.js?v=' + cacheBuster;
-    import {
+    } = window;
+    
+    const {
         getPackages,
         getPackageById
-    } from './js/packages.js?v=' + cacheBuster;
-    import {
+    } = window;
+    
+    const {
         listenToInvoices,
         addInvoice,
         updateInvoice,
         deleteInvoice,
-        generateInvoicesForAllUsers as generateAll,
-        sendPaymentReminders as sendAllReminders
-    } from './js/invoices.js?v=' + cacheBuster;
-    import {
+        generateInvoicesForAllUsers: generateAll,
+        sendPaymentReminders: sendAllReminders
+    } = window;
+    
+    const {
         sendInvoiceNotification,
         sendInvoicePdf,
         formatMessage
-    } from './js/whatsapp.js?v=' + cacheBuster;
-    import {
+    } = window;
+    
+    const {
         generateInvoiceImage,
         generateFormattedInvoiceId,
         formatAmount
-    } from './js/invoiceGenerator.js?v=' + cacheBuster;
+    } = window;
 
     // DOM Elements
     const invoiceForm = document.getElementById('createInvoiceForm');
