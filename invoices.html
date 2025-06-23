@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <base href="/BGA/">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WeCloud Internet Services - Invoices</title>
@@ -299,7 +298,7 @@
         addInvoice,
         updateInvoice,
         deleteInvoice,
-        generateInvoicesForAllUsers as generateAll,
+        generateInvoicesForAllUsers,
         sendPaymentReminders,
         sendDueReminders,
         markOverdueInvoices,
@@ -673,7 +672,7 @@
         if (!confirm('This will generate invoices for ALL users without one for the current month. Are you sure?')) return;
         showAlert('Processing...', 'Generating invoices for all users. This may take a moment.');
         try {
-            await generateAll({ sendNotifications: document.getElementById('sendNotificationCheck').checked });
+            await generateInvoicesForAllUsers({ sendNotifications: document.getElementById('sendNotificationCheck').checked });
             showAlert('Success', 'Invoice generation process completed.');
         } catch(e) {
             showAlert('Error', 'An error occurred during bulk invoice generation.');

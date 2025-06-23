@@ -91,28 +91,7 @@ Dear *{userName}*,
 
 {message}
 
-WeCloud Internet Services 🌟`,
-
-    DUE_REMINDER: `*⏰ PAYMENT DUE REMINDER*
-━━━━━━━━━━━━━━━━━━━━━
-
-Dear *{userName}*,
-
-This is a reminder that your invoice *#{formattedId}* is due on *{dueDate}*.
-
-*📊 INVOICE DETAILS*
-━━━━━━━━━━━━
-• *Invoice ID:* #{formattedId}
-• *Package:* {packageName} ({packageSpeed})
-• *Amount Due:* Rs. {invoiceAmount}
-• *Due Date:* {dueDate}
-
-*🔗 VIEW INVOICE*
-━━━━━━━━━━━━
-Click here to view your invoice:
-+{invoiceLink}
-
-Thank you for choosing WeCloud Internet Services! 🌟`,
+WeCloud Internet Services 🌟`
 };
 
 // Server status checker with QR code handling
@@ -718,7 +697,6 @@ async function sendInvoiceNotification(user, invoice) {
             formattedId: invoice.formattedId || invoice.id,
             amount: invoice.amount,
             dueDate: invoice.dueDate,
-            date: invoice.dueDate,
             id: invoice.id
         });
 
@@ -811,8 +789,6 @@ async function formatMessage(user, type, data) {
         templateType = 'paid';
     } else if (type === 'PAYMENT_REMINDER') {
         templateType = 'unpaid';
-    } else if (type === 'DUE_REMINDER') {
-        templateType = 'due_reminder';
     } else if (type === 'BROADCAST_ALERT') {
         templateType = 'broadcast';
     }
@@ -854,17 +830,33 @@ async function formatMessage(user, type, data) {
             template = template.replace(/{paymentDate}/g, formatDate(data.paymentDate));
         }
         
-        // Package information
-        if (data.packageName) {
+        // Package information - fetch package data if needed
+        if (data.packageName && data.packageName !== 'undefined') {
             template = template.replace(/{packageName}/g, data.packageName);
         } else if (data.packageId) {
             // Try to get package name from packageId
-            template = template.replace(/{packageName}/g, data.packageId);
+            try {
+                const packageDoc = await getDoc(doc(db, "packages", data.packageId));
+                if (packageDoc.exists()) {
+                    const packageData = packageDoc.data();
+                    template = template.replace(/{packageName}/g, packageData.name || 'Internet Service');
+                    
+                    // Also update packageSpeed if available
+                    if (packageData.speed) {
+                        data.packageSpeed = packageData.speed;
+                    }
+                } else {
+                    template = template.replace(/{packageName}/g, 'Internet Service');
+                }
+            } catch (err) {
+                console.warn(`Could not fetch package data: ${err.message}`);
+                template = template.replace(/{packageName}/g, 'Internet Service');
+            }
         } else {
             template = template.replace(/{packageName}/g, 'Internet Service');
         }
         
-        template = template.replace(/{packageSpeed}/g, data.packageSpeed || '');
+        template = template.replace(/{packageSpeed}/g, data.packageSpeed && data.packageSpeed !== 'undefined' ? data.packageSpeed : '');
         
         // Billing period
         let billingPeriod = 'N/A';
@@ -872,6 +864,23 @@ async function formatMessage(user, type, data) {
             billingPeriod = data.billingPeriod;
         } else if (data.period) {
             billingPeriod = data.period;
+        } else if (data.dueDate) {
+            // For due reminders, use the due date to determine the billing period
+            let dateVal;
+            if (data.dueDate.toDate) {
+                dateVal = data.dueDate.toDate();
+            } else if (typeof data.dueDate === 'number') {
+                dateVal = new Date(data.dueDate * 1000);
+            } else {
+                dateVal = new Date(data.dueDate);
+            }
+            const month = dateVal.toLocaleString('default', { month: 'long' });
+            const year = dateVal.getFullYear();
+            billingPeriod = `${month} ${year}`;
+            
+            // Also set month/year separately
+            template = template.replace(/{invoiceMonth}/g, month);
+            template = template.replace(/{invoiceYear}/g, year);
         } else if (data.date) {
             const date = new Date(data.date);
             const month = date.toLocaleString('default', { month: 'long' });
@@ -894,6 +903,7 @@ async function formatMessage(user, type, data) {
             template = template.replace(/{message}/g, data.message);
             template = template.replace(/{alertMessage}/g, data.message);
         }
+        
         // Ensure invoiceMonth and invoiceYear placeholders are filled if dueDate is provided
         if (data.dueDate) {
             let dateVal;
@@ -909,6 +919,12 @@ async function formatMessage(user, type, data) {
             const yearNum = dateVal.getFullYear();
             template = template.replace(/{invoiceMonth}/g, monthName);
             template = template.replace(/{invoiceYear}/g, yearNum);
+        }
+        
+        // Remove OVERDUE text for due reminders
+        if (type === 'INVOICE_NOTIFICATION') {
+            template = template.replace(/OVERDUE/g, '');
+            template = template.replace(/\(OVERDUE\)/g, '');
         }
     }
     
@@ -1208,26 +1224,6 @@ function showSwaggerQRInstructions() {
     return modalDiv;
 }
 
-// New function to send due reminder
-async function sendDueReminder(user, invoice) {
-    try {
-        const message = await formatMessage(user, 'DUE_REMINDER', {
-            ...invoice,
-            formattedId: invoice.formattedId || invoice.id,
-            invoiceAmount: invoice.amount,
-            amount: invoice.amount,
-            dueDate: invoice.dueDate,
-            packageName: invoice.packageName || invoice.packageId || 'Internet Service',
-            packageSpeed: invoice.packageSpeed || '',
-            id: invoice.id
-        });
-        return await sendWithRetry(() => sendMessage(user.phone, message));
-    } catch (error) {
-        console.error('Error sending due reminder:', error);
-        return { success: false, error: error.message };
-    }
-}
-
 // Export all the functions
 export {
     sendMessage,
@@ -1245,6 +1241,5 @@ export {
     formatAmount,
     serverStatus,
     authenticateWithQR,
-    showSwaggerQRInstructions,
-    sendDueReminder
+    showSwaggerQRInstructions
 }; 

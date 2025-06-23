@@ -21,11 +21,11 @@ import {
 } from './firebaseConfig.js';
 import {
     sendInvoiceNotification,
-    sendPaymentReminder,
-    sendDueReminder
-} from './js/whatsapp.js';
+    sendPaymentReminder
+} from './whatsapp.js';
 import {
-    getUserById
+    getUserById,
+    getUsers
 } from './users.js';
 import {
     getPackageById
@@ -33,6 +33,11 @@ import {
 import {
     generateFormattedInvoiceId
 } from './invoiceGenerator.js';
+
+// --- Constants ---
+const INVOICE_BATCH_SIZE = 25; // Process 25 invoices at a time
+const MAX_CONCURRENT_OPERATIONS = 4; // Maximum number of concurrent batch operations
+const PROCESSING_TIMEOUT = 30000; // 30 seconds timeout for each batch
 
 // --- Firestore Collection References ---
 const invoicesCollection = collection(db, "invoices");
@@ -411,6 +416,8 @@ async function processBatch(users, options = {}) {
   const results = {
     success: 0,
     failed: 0,
+    skipped: 0,
+    warnings: 0,
     details: []
   };
 
@@ -425,6 +432,66 @@ async function processBatch(users, options = {}) {
       await Promise.race([
         Promise.all(chunk.map(async (user) => {
           try {
+            // Check if user has an invoice for current month/year
+            const currentMonthQuery = query(
+              collection(db, "invoices"),
+              where("userId", "==", user.id),
+              where("month", "==", options.month),
+              where("year", "==", options.year)
+            );
+            
+            console.log(`Checking invoices for user ${user.name} (${user.id}) for month ${options.month} and year ${options.year}`);
+            const currentMonthInvoices = await getDocs(currentMonthQuery);
+            
+            if (!currentMonthInvoices.empty) {
+              console.log(`Skipping invoice generation for user ${user.name} (${user.id}) - already has invoice for ${options.month}/${options.year}`);
+              results.skipped++;
+              results.details.push({
+                userId: user.id,
+                userName: user.name,
+                success: true,
+                skipped: true,
+                message: `Already has invoice for ${options.month}/${options.year}`
+              });
+              return;
+            }
+
+            // Check for unpaid invoices
+            const unpaidQuery = query(
+              collection(db, "invoices"),
+              where("userId", "==", user.id),
+              where("status", "in", ["Due", "Overdue"])
+            );
+            const unpaidInvoices = await getDocs(unpaidQuery);
+            
+            if (!unpaidInvoices.empty) {
+              const unpaidCount = unpaidInvoices.size;
+              console.warn(`⚠️ Warning: User ${user.name} (${user.id}) has ${unpaidCount} unpaid invoice(s):`);
+              unpaidInvoices.forEach(doc => {
+                const inv = doc.data();
+                // Convert Firebase Timestamp to JS Date if needed
+                const dueDate = inv.dueDate instanceof Date ? inv.dueDate : 
+                              (inv.dueDate?.toDate ? inv.dueDate.toDate() : new Date(inv.dueDate));
+                const formattedDate = dueDate.toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric' 
+                });
+                console.warn(`  - Invoice ${doc.id}: ${inv.status}, Due: ${formattedDate}`);
+              });
+              results.warnings++;
+              results.skipped++;
+              results.details.push({
+                userId: user.id,
+                userName: user.name,
+                success: true,
+                skipped: true,
+                message: `Has ${unpaidCount} unpaid invoice(s)`
+              });
+              return;
+            }
+
+            // If we get here, user has no invoice for current month and no unpaid invoices
             const packageData = options.packagesMap.get(user.packageId);
             if (!packageData) {
               throw new Error("Package not found");
@@ -434,7 +501,8 @@ async function processBatch(users, options = {}) {
             const invoiceData = await generateInvoiceData(user, packageData, options);
             
             // Add invoice to database
-            const docRef = await addDoc(collection(db, "invoices"), invoiceData);
+            const invoiceRef = doc(db, "invoices", invoiceData.formattedId);
+            await setDoc(invoiceRef, invoiceData);
 
             // Process notifications in parallel if needed
             if (options.sendNotifications) {
@@ -449,7 +517,8 @@ async function processBatch(users, options = {}) {
               userId: user.id,
               userName: user.name,
               invoiceId: invoiceData.formattedId,
-              success: true
+              success: true,
+              hasUnpaidInvoices: false
             });
           } catch (error) {
             console.error(`Error processing invoice for user ${user.id}:`, error);
@@ -507,6 +576,26 @@ async function generateInvoiceData(user, packageData, options) {
     }
     
     console.log("Generated invoice ID:", formattedId); // Debug log
+
+    // Ensure dueDate is a proper Date object
+    let dueDate;
+    if (options.dueDate instanceof Date) {
+      dueDate = options.dueDate;
+    } else if (options.dueDate?.toDate) {
+      // Handle Firebase Timestamp
+      dueDate = options.dueDate.toDate();
+    } else if (options.dueDate) {
+      // Handle string or number
+      dueDate = new Date(options.dueDate);
+    } else {
+      // Default: 15 days into next month
+      dueDate = new Date();
+      dueDate.setMonth(dueDate.getMonth() + 1);
+      dueDate.setDate(15);
+    }
+
+    // Set time to midnight for consistent comparison
+    dueDate.setHours(0, 0, 0, 0);
     
     return {
       formattedId,
@@ -514,7 +603,7 @@ async function generateInvoiceData(user, packageData, options) {
       userId: user.id,
       packageId: user.packageId,
       amount: packageData.price,
-      dueDate: options.dueDate,
+      dueDate: dueDate,
       status: 'Due',
       createdAt: new Date(),
       month: currentMonth,
@@ -555,36 +644,69 @@ async function generateAndSendInvoice(user, invoiceData) {
   }
 }
 
-// Update monthly statistics
+// Update monthly statistics with batch write
 async function updateMonthlyStats(invoiceData) {
   try {
-    const key = `${invoiceData.month}-${invoiceData.year}`;
-    const stats = cache.monthlyStats.data.get(key) || {
+    const key = `${invoiceData.year}_${invoiceData.month}`;
+    const statsRef = doc(db, "invoice_stats", key);
+    
+    // Create a batch
+    const batch = writeBatch(db);
+    
+    // Get current stats
+    const statsDoc = await getDoc(statsRef);
+    const stats = statsDoc.exists() ? statsDoc.data() : {
+      totalInvoices: 0,
+      totalAmount: 0,
+      paidInvoices: 0,
+      paidAmount: 0,
+      lastUpdated: new Date()
+    };
+
+    // Update stats
+    stats.totalInvoices++;
+    stats.totalAmount += parseFloat(invoiceData.amount);
+    stats.lastUpdated = new Date();
+
+    // Add to batch
+    batch.set(statsRef, stats, { merge: true });
+
+    // Commit the batch
+    await batch.commit();
+
+    // Update local cache
+    const cacheKey = `${invoiceData.month}-${invoiceData.year}`;
+    const cachedStats = cache.monthlyStats.data.get(cacheKey) || {
       totalInvoices: 0,
       totalAmount: 0,
       paidInvoices: 0,
       paidAmount: 0
     };
 
-    stats.totalInvoices++;
-    stats.totalAmount += parseFloat(invoiceData.amount);
-
-    cache.monthlyStats.data.set(key, stats);
+    cachedStats.totalInvoices++;
+    cachedStats.totalAmount += parseFloat(invoiceData.amount);
+    cache.monthlyStats.data.set(cacheKey, cachedStats);
     cache.monthlyStats.timestamp = Date.now();
   } catch (error) {
     console.error("Error updating monthly stats:", error);
+    // Don't throw the error - we don't want to fail invoice generation just because stats failed
   }
 }
 
 /**
- * Generate invoices for all users with optimized batch processing
+ * Generate invoices for all users in batches
  * @param {object} options - Options for invoice generation
- * @returns {Promise} - Promise with generation results
+ * @returns {Promise<object>} - Results of the operation
  */
 export async function generateInvoicesForAllUsers(options = {}) {
   try {
     const startTime = Date.now();
     console.log("Starting invoice generation for all users...");
+    
+    // Get current date
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth(); // 0-11
+    const currentYear = currentDate.getFullYear();
     
     // Default options
     const defaultOptions = {
@@ -592,25 +714,40 @@ export async function generateInvoicesForAllUsers(options = {}) {
       maxConcurrent: MAX_CONCURRENT_OPERATIONS,
       dryRun: false,
       sendNotifications: true,
-      month: new Date().getMonth(),
-      year: new Date().getFullYear(),
+      month: currentMonth,
+      year: currentYear,
       processingTimeout: PROCESSING_TIMEOUT
     };
     
     // Merge options
     const mergedOptions = { ...defaultOptions, ...options };
-    console.log("Using options:", mergedOptions);
+    console.log("Using options:", {
+      ...mergedOptions,
+      month: mergedOptions.month + 1, // Convert 0-based month to 1-based for logging
+    });
     
     // Get all users
-    const { users } = await import('./users.js');
-    const allUsers = await users.getUsers();
+    const allUsers = await getUsers();
     
     if (!allUsers || allUsers.length === 0) {
       console.warn("No users found!");
       return { success: false, message: "No users found" };
     }
     
+    // Get all packages and create a map for quick lookup
+    const { getPackages } = await import('./packages.js');
+    const packages = await getPackages();
+    mergedOptions.packagesMap = new Map(packages.map(pkg => [pkg.id, pkg]));
+    
     console.log(`Found ${allUsers.length} users to process`);
+    
+    // Set due date to 15th of next month if not specified
+    if (!mergedOptions.dueDate) {
+      const dueDate = new Date();
+      dueDate.setMonth(dueDate.getMonth() + 1);
+      dueDate.setDate(15); // Due 15th of next month
+      mergedOptions.dueDate = dueDate;
+    }
     
     // Split users into batches
     const batches = [];
@@ -625,6 +762,8 @@ export async function generateInvoicesForAllUsers(options = {}) {
     let failedBatches = 0;
     let totalInvoicesGenerated = 0;
     let totalErrors = 0;
+    let totalSkipped = 0;
+    let totalWarnings = 0;
     
     // Process batches with semaphore pattern for concurrency control
     let activeBatches = 0;
@@ -652,10 +791,12 @@ export async function generateInvoicesForAllUsers(options = {}) {
         const result = await Promise.race([batchPromise, timeoutPromise]);
         
         completedBatches++;
-        totalInvoicesGenerated += result.invoicesGenerated || 0;
-        totalErrors += result.errors || 0;
+        totalInvoicesGenerated += result.success || 0;
+        totalErrors += result.failed || 0;
+        totalSkipped += result.skipped || 0;
+        totalWarnings += result.warnings || 0;
         
-        console.log(`Completed batch ${index + 1}/${batches.length}: ${result.invoicesGenerated} invoices, ${result.errors} errors`);
+        console.log(`Completed batch ${index + 1}/${batches.length}: ${result.success} invoices, ${result.failed} errors, ${result.skipped} skipped, ${result.warnings} warnings`);
         batchResults.push(result);
       } catch (error) {
         console.error(`Batch ${index + 1} failed:`, error);
@@ -663,8 +804,10 @@ export async function generateInvoicesForAllUsers(options = {}) {
         batchResults.push({ 
           success: false, 
           error: error.message, 
-          invoicesGenerated: 0,
-          errors: 1
+          success: 0,
+          failed: batch.length,
+          skipped: 0,
+          warnings: 0
         });
       } finally {
         activeBatches--;
@@ -684,7 +827,7 @@ export async function generateInvoicesForAllUsers(options = {}) {
     const duration = (endTime - startTime) / 1000;
     
     console.log(`Invoice generation completed in ${duration.toFixed(2)} seconds`);
-    console.log(`Generated ${totalInvoicesGenerated} invoices with ${totalErrors} errors`);
+    console.log(`Generated ${totalInvoicesGenerated} invoices with ${totalErrors} errors, ${totalSkipped} skipped, and ${totalWarnings} warnings`);
     
     return {
       success: true,
@@ -693,6 +836,8 @@ export async function generateInvoicesForAllUsers(options = {}) {
       totalBatches: batches.length,
       totalInvoicesGenerated,
       totalErrors,
+      totalSkipped,
+      totalWarnings,
       duration,
       results: batchResults
     };
@@ -950,7 +1095,7 @@ export async function markOverdueInvoices(options = {}) {
                 });
                 
                 fixedCount++;
-                console.log(`Fixed invoice ${invoice.id} - changed from Overdue to Due as due date is in future`);
+                console.log(`Successfully fixed invoice ${invoice.id}`);
                 
                 // Add a small delay to avoid rate limiting
                 await new Promise(resolve => setTimeout(resolve, 100));
@@ -962,19 +1107,16 @@ export async function markOverdueInvoices(options = {}) {
         
         return {
             success: true,
-            message: `Marked ${markedCount} invoices as overdue, fixed ${fixedCount} incorrect invoices, with ${failureCount} failures`,
             markedCount,
             fixedCount,
-            failedCount: failureCount,
-            total: overdueInvoices.length + incorrectOverdueInvoices.length
+            total: overdueInvoices.length,
+            failed: failureCount
         };
     } catch (error) {
         console.error("Error marking overdue invoices:", error);
         return {
             success: false,
-            message: `Failed to mark overdue invoices: ${error.message}`,
-            markedCount: 0,
-            fixedCount: 0
+            error: error.message
         };
     }
 }
@@ -1204,15 +1346,30 @@ export async function sendDueReminders(options = {}) {
                 if (!user) {
                     throw new Error('User not found');
                 }
-                // Send custom due reminder
-                const result = await sendDueReminder(user, invoice);
-                if (result.success) {
-                    successCount++;
-                    // Record when reminder was sent
-                    await updateInvoice(invoice.id, { reminderSentAt: new Date() });
-                } else {
-                    failureCount++;
+                // Get package data to include in the reminder
+                let packageData = null;
+                if (invoice.packageId) {
+                    try {
+                        const packageDoc = await getDoc(doc(db, "packages", invoice.packageId));
+                        if (packageDoc.exists()) {
+                            packageData = packageDoc.data();
+                        }
+                    } catch (err) {
+                        console.warn(`Could not fetch package data for invoice ${invoice.id}: ${err.message}`);
+                    }
                 }
+                
+                // Send invoice notification template as due reminder with enhanced data
+                const enhancedInvoice = {
+                    ...invoice,
+                    packageName: packageData?.name || 'Internet Service',
+                    packageSpeed: packageData?.speed || ''
+                };
+                
+                await sendInvoiceNotification(user, enhancedInvoice);
+                successCount++;
+                // Record when reminder was sent
+                await updateInvoice(invoice.id, { reminderSentAt: new Date() });
             } catch (error) {
                 console.error(`Failed to send due reminder for invoice ${invoice.id}:`, error);
                 failureCount++;
@@ -1237,4 +1394,4 @@ export async function sendDueReminders(options = {}) {
             total: 0
         };
     }
-} 
+}

@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <base href="/BGA/">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WeCloud Internet Services - Message Templates</title>
@@ -120,51 +119,10 @@
         </form>
       </div>
       
-      <!-- WhatsApp Test Section -->
-      <div class="form-container">
-        <h2 class="form-title">Test WhatsApp Connection</h2>
-        
-        <form id="testWhatsAppForm">
-          <div class="form-row">
-            <div class="form-col">
-              <div class="form-group">
-                <label for="testWhatsAppPhone" class="form-label">Phone Number</label>
-                <input type="tel" id="testWhatsAppPhone" class="form-control" placeholder="e.g., 923001234567" required>
-              </div>
-            </div>
-            
-            <div class="form-col">
-              <div class="form-group">
-                <button type="submit" id="testWhatsAppBtn" class="btn btn-primary">
-                  <i class="fas fa-vial"></i> Test Connection
-                </button>
-              </div>
-            </div>
-          </div>
-        </form>
-      </div>
       
-      <!-- WhatsApp Authentication Section -->
-      <section class="whatsapp-auth-section" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #dee2e6;">
-        <h3>WhatsApp Connection</h3>
-        <p>To use WhatsApp messaging functionality:</p>
-        <ol>
-          <li>Start the WAHA server on your PC</li>
-          <li>When sending your first message, you'll be prompted to scan a QR code</li>
-          <li>Open WhatsApp on your phone</li>
-          <li>Go to Settings > Linked Devices > Link a Device</li>
-          <li>Scan the QR code when it appears</li>
-          <li>Wait for the authentication to complete</li>
-        </ol>
-        <p><strong>Note:</strong> You'll need to scan the QR code only once. The session will remain active until you log out or restart the server.</p>
-        
-        <div style="margin-top: 15px; padding: 10px; background-color: #fff8e1; border-radius: 4px; border-left: 4px solid #ffc107;">
-          <p><i class="fas fa-info-circle"></i> <strong>Important:</strong> The free version of WAHA does not support sending PDF files directly via WhatsApp.</p>
-          <p>For more information about WhatsApp integration limitations and solutions, please see the <a href="whatsapp-info.html" style="color: #0d6efd; text-decoration: underline;">WhatsApp Integration Guide</a>.</p>
-        </div>
         
         <!-- Session Management -->
-        <div class="session-management" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+        <div class="session-management" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6; margin-bottom: 45px; margin-left: 15px; margin-right: 15px;">
           <h4>Session Management</h4>
           <p>If you're having trouble with WhatsApp messages, you can try restarting the session:</p>
           <div class="form-row">
@@ -176,9 +134,6 @@
             </button>
             <button id="authenticateBtn" class="btn btn-primary" style="margin-left: 10px;">
               <i class="fas fa-qrcode"></i> Authenticate Now
-            </button>
-            <button id="directQrBtn" class="btn btn-info" style="margin-left: 10px;">
-              <i class="fas fa-external-link-alt"></i> Get QR Directly
             </button>
           </div>
           <div id="sessionStatus" style="margin-top: 10px; padding: 8px; border-radius: 4px; display: none;"></div>
@@ -260,7 +215,7 @@
 
   <!-- Scripts -->
   <script type="module">
-    import { sendWhatsAppAlert, testWhatsAppConnection, serverStatus, authenticateWithQR, showSwaggerQRInstructions } from './js/whatsapp.js';
+    import { serverStatus, authenticateWithQR } from './js/whatsapp.js';
     import { getUsers } from './js/users.js';
     import { sendBroadcastAlert } from './js/whatsapp.js';
     import { db, doc, getDoc, setDoc } from './js/firebaseConfig.js';
@@ -280,16 +235,10 @@
     const broadcastMessage = document.getElementById('broadcastMessage');
     const sendBroadcastBtn = document.getElementById('sendBroadcastBtn');
     
-    // WhatsApp test elements
-    const testWhatsAppForm = document.getElementById('testWhatsAppForm');
-    const testWhatsAppPhone = document.getElementById('testWhatsAppPhone');
-    const testWhatsAppBtn = document.getElementById('testWhatsAppBtn');
-    
     // Session management elements
     const checkSessionBtn = document.getElementById('checkSessionBtn');
     const restartSessionBtn = document.getElementById('restartSessionBtn');
     const authenticateBtn = document.getElementById('authenticateBtn');
-    const directQrBtn = document.getElementById('directQrBtn');
     const sessionStatusDiv = document.getElementById('sessionStatus');
     
     // Modal elements
@@ -525,46 +474,6 @@ Thank you for choosing WeCloud Internet Services! 🌟`
       }
     }
     
-    // WhatsApp test function
-    async function handleWhatsAppTest(e) {
-      e.preventDefault();
-      
-        const phone = testWhatsAppPhone.value.trim();
-      if (!phone) {
-        showAlert('Error', 'Please enter a valid phone number');
-          return;
-        }
-        
-        testWhatsAppBtn.disabled = true;
-        testWhatsAppBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
-        
-      try {
-        const result = await testWhatsAppConnection();
-        
-        if (result.success) {
-          // If connection test passed, try sending a test message
-          const testResult = await sendWhatsAppAlert({ 
-            name: 'Test User', 
-            phone: phone 
-          }, 'This is a test message from WeCloud Internet Services.');
-          
-          if (testResult && testResult.success) {
-            showAlert('Success', 'WhatsApp connection test successful! Test message sent.');
-          } else {
-            showAlert('Warning', `Connection established but message failed: ${testResult?.error || 'Unknown error'}`);
-          }
-        } else {
-          showAlert('Error', result.message || 'WhatsApp connection test failed');
-        }
-      } catch (error) {
-        console.error('WhatsApp test error:', error);
-        showAlert('Error', `WhatsApp test failed: ${error.message}`);
-      } finally {
-        testWhatsAppBtn.disabled = false;
-        testWhatsAppBtn.innerHTML = '<i class="fas fa-vial"></i> Test Connection';
-      }
-    }
-    
     // Show alert modal
     function showAlert(title, message) {
       alertTitle.textContent = title;
@@ -592,9 +501,8 @@ Thank you for choosing WeCloud Internet Services! 🌟`
       });
       
       // Form submissions
-    messageForm.addEventListener('submit', saveTemplates);
-    broadcastForm.addEventListener('submit', handleBroadcast);
-    testWhatsAppForm.addEventListener('submit', handleWhatsAppTest);
+      messageForm.addEventListener('submit', saveTemplates);
+      broadcastForm.addEventListener('submit', handleBroadcast);
       
       // Other button events
       resetBtn.addEventListener('click', resetTemplates);
@@ -605,7 +513,6 @@ Thank you for choosing WeCloud Internet Services! 🌟`
       checkSessionBtn.addEventListener('click', checkSessionStatus);
       restartSessionBtn.addEventListener('click', restartSession);
       authenticateBtn.addEventListener('click', startAuthentication);
-      directQrBtn.addEventListener('click', showDirectQrInstructions);
     });
     
     // Check WhatsApp session status
@@ -810,11 +717,6 @@ Thank you for choosing WeCloud Internet Services! 🌟`
         authenticateBtn.disabled = false;
         authenticateBtn.innerHTML = '<i class="fas fa-qrcode"></i> Authenticate Now';
       }
-    }
-    
-    // Show direct QR code instructions
-    function showDirectQrInstructions() {
-      showSwaggerQRInstructions();
     }
   </script>
 </body>
