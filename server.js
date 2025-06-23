@@ -152,7 +152,7 @@ if (cluster.isMaster && WORKERS > 1) {
   });
   
   // Start server
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`WeCloud server worker ${cluster.worker ? cluster.worker.id : 'single'} running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`Server time: ${new Date().toISOString()}`);
@@ -176,4 +176,6 @@ if (cluster.isMaster && WORKERS > 1) {
       process.exit(1);
     }, 10000);
   }
-} 
+}
+
+ 

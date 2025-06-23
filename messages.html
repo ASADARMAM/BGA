@@ -170,8 +170,8 @@
             <button id="checkSessionBtn" class="btn btn-outline" style="margin-right: 10px;">
               <i class="fas fa-sync"></i> Check Status
             </button>
-            <button id="restartSessionBtn" class="btn btn-warning">
-              <i class="fas fa-power-off"></i> Restart WhatsApp Session
+            <button id="restartSessionBtn" class="btn btn-warning" title="Restarts the session without deleting it">
+              <i class="fas fa-sync"></i> Restart Session
             </button>
             <button id="authenticateBtn" class="btn btn-primary" style="margin-left: 10px;">
               <i class="fas fa-qrcode"></i> Authenticate Now
@@ -350,7 +350,7 @@ Thank you! We have successfully received your payment.
 
 *🔗 VIEW RECEIPT*
 ━━━━━━━━━━━━
-Your receipt is available here:
+A receipt has been generated for your payment:
 {invoiceLink}
 
 We value your business and look forward to providing you with excellent internet service.
@@ -737,7 +737,7 @@ Thank you for choosing WeCloud Internet Services! 🌟`
     
     // Restart WhatsApp session
     async function restartSession() {
-      if (!confirm('Are you sure you want to restart the WhatsApp session? You will need to scan the QR code again.')) {
+      if (!confirm('Are you sure you want to restart the WhatsApp session?\n\nThis will only restart the session without deleting it, preserving your authentication data. You will only need to scan the QR code again if there was a problem with the previous session.')) {
         return;
       }
       
@@ -749,14 +749,19 @@ Thank you for choosing WeCloud Internet Services! 🌟`
         const success = await serverStatus.restartSession();
         
         if (success) {
-          showAlert('Session Restart', 'The WhatsApp session has been restarted. You will need to scan a QR code the next time you send a message.');
+          showAlert('Session Restart', 'The WhatsApp session has been restarted. If your previous session was authenticated, you should still be connected. Otherwise, you may need to scan a QR code.');
           
-          // Offer to authenticate now
-          setTimeout(() => {
-            if (confirm('Do you want to authenticate WhatsApp now?')) {
-              authenticateWithQR();
-            }
-          }, 500);
+          // Check if we need to authenticate
+          await checkSessionStatus();
+          
+          // If not connected, offer to authenticate now
+          if (serverStatus.sessionStatus !== 'CONNECTED' && serverStatus.sessionStatus !== 'WORKING') {
+            setTimeout(() => {
+              if (confirm('Your session is not connected. Do you want to authenticate WhatsApp now?')) {
+                authenticateWithQR();
+              }
+            }, 500);
+          }
         } else {
           showAlert('Warning', 'Session restart command sent, but there might have been issues. Check the status.');
         }
@@ -768,7 +773,7 @@ Thank you for choosing WeCloud Internet Services! 🌟`
         showAlert('Error', `Failed to restart session: ${error.message}`);
       } finally {
         restartSessionBtn.disabled = false;
-        restartSessionBtn.innerHTML = '<i class="fas fa-power-off"></i> Restart WhatsApp Session';
+        restartSessionBtn.innerHTML = '<i class="fas fa-sync"></i> Restart Session';
       }
     }
     
@@ -778,6 +783,15 @@ Thank you for choosing WeCloud Internet Services! 🌟`
       authenticateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
       
       try {
+        // Check current session status first
+        await checkSessionStatus();
+        
+        // If already connected, show a message
+        if (serverStatus.sessionStatus === 'CONNECTED' || serverStatus.sessionStatus === 'WORKING') {
+          showAlert('Already Connected', 'WhatsApp is already authenticated and connected. No need to scan QR code.');
+          return;
+        }
+        
         const result = await authenticateWithQR();
         
         if (result) {

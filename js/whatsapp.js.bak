@@ -91,28 +91,7 @@ Dear *{userName}*,
 
 {message}
 
-WeCloud Internet Services 🌟`,
-
-    DUE_REMINDER: `*⏰ PAYMENT DUE REMINDER*
-━━━━━━━━━━━━━━━━━━━━━
-
-Dear *{userName}*,
-
-This is a reminder that your invoice *#{formattedId}* is due on *{dueDate}*.
-
-*📊 INVOICE DETAILS*
-━━━━━━━━━━━━
-• *Invoice ID:* #{formattedId}
-• *Package:* {packageName} ({packageSpeed})
-• *Amount Due:* Rs. {invoiceAmount}
-• *Due Date:* {dueDate}
-
-*🔗 VIEW INVOICE*
-━━━━━━━━━━━━
-Click here to view your invoice:
-+{invoiceLink}
-
-Thank you for choosing WeCloud Internet Services! 🌟`,
+WeCloud Internet Services 🌟`
 };
 
 // Server status checker with QR code handling
@@ -374,7 +353,7 @@ const serverStatus = {
                             console.log("Found QR code in 'qrcode' field");
                             break;
                         }
-                    } else {
+    } else {
                         console.log(`Endpoint ${endpoint} returned status: ${response.status}`);
                     }
                 } catch (error) {
@@ -386,9 +365,34 @@ const serverStatus = {
                 this.qrCode = qrCode;
                 return this.qrCode;
             } else {
-                console.error("Failed to retrieve QR code from WAHA API");
-                return false;
+                console.log("No QR code found in any response:", responseData);
+                
+                // If we still don't have a QR code, try forcing a new one
+                try {
+                    console.log("Attempting to force new QR code generation...");
+                    await this.restartSession();
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    
+                    // Try the first endpoint again
+                    const response = await fetch(endpoints[0], {
+                        headers: { ...WAHA_CONFIG.headers, 'Accept': 'application/json' }
+                    });
+                    
+                    if (response.ok) {
+                        responseData = await response.json();
+                        console.log("Forced QR response:", responseData);
+                        
+                        if (responseData && responseData.qr) {
+                            this.qrCode = responseData.qr;
+                            return this.qrCode;
+                        }
+                    }
+                } catch (e) {
+                    console.log("Failed to force new QR code:", e);
+                }
             }
+            
+            return null;
         } catch (error) {
             console.error("Error getting QR code:", error);
             return null;
@@ -461,15 +465,13 @@ function showQRModal(qrCode) {
         existingModal.remove();
     }
     
-    // Ensure QR code has proper data URI prefix
-    const imgSrc = qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`;
     const modalHtml = `
         <div id="whatsappQrModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7);">
             <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 350px; border-radius: 8px; text-align: center;">
                 <h3 style="margin-top: 0;">Scan WhatsApp QR Code</h3>
                 <p>Please scan this QR code with WhatsApp on your phone:</p>
                 <div style="margin: 20px 0;">
-                    <img src="${imgSrc}" alt="WhatsApp QR Code" style="width: 256px; height: 256px; display: block; margin: 0 auto;">
+                    <img src="${qrCode}" alt="WhatsApp QR Code" style="width: 256px; height: 256px; display: block; margin: 0 auto;">
                 </div>
                 <p style="margin-bottom: 5px;">1. Open WhatsApp on your phone</p>
                 <p style="margin-bottom: 5px;">2. Go to Settings > Linked Devices</p>
@@ -644,26 +646,142 @@ async function authenticateWithQR() {
         }
     }
     
-    // Get QR code for authentication - try multiple times
-    let qrCode = null;
-    let attempts = 0;
-    const maxAttempts = 3;
+    // Create a modal with loading indicator while we fetch the QR code
+    const loadingModalDiv = document.createElement('div');
+    loadingModalDiv.innerHTML = `
+        <div id="qrLoadingModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7);">
+            <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 350px; border-radius: 8px; text-align: center;">
+                <h3 style="margin-top: 0;">WhatsApp Authentication</h3>
+                <p>Fetching QR code directly from WAHA API...</p>
+                <div style="margin: 20px 0;">
+                    <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; margin: 0 auto; animation: spin 2s linear infinite;"></div>
+                </div>
+                <style>
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                </style>
+                <button id="cancelQrLoading" style="background-color: #f44336; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px;">Cancel</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(loadingModalDiv);
     
-    while (!qrCode && attempts < maxAttempts) {
-        attempts++;
-        console.log(`QR code retrieval attempt ${attempts}/${maxAttempts}...`);
-        
-        qrCode = await serverStatus.getQR();
-        
-        if (!qrCode && attempts < maxAttempts) {
-            console.log(`No QR code received, waiting before retry...`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
+    // Add cancel button handler
+    const cancelPromise = new Promise(resolve => {
+        document.getElementById('cancelQrLoading').addEventListener('click', () => {
+            loadingModalDiv.remove();
+            resolve({ cancelled: true });
+        });
+    });
+    
+    // Try all possible QR endpoints directly
+    const qrPromise = (async () => {
+        try {
+            // Try multiple endpoints for QR code - different WAHA versions use different paths
+            const endpoints = [
+                `${WAHA_CONFIG.baseUrl}/sessions/${WAHA_CONFIG.session}/qr`,
+                `${WAHA_CONFIG.baseUrl}/auth/${WAHA_CONFIG.session}/qr`,
+                `${WAHA_CONFIG.baseUrl}/${WAHA_CONFIG.session}/auth/qr`
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    console.log(`Trying QR endpoint: ${endpoint}`);
+                    const response = await fetch(endpoint, {
+                        headers: WAHA_CONFIG.headers
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log("QR response received");
+                        
+                        // Different WAHA versions return QR in different formats
+                        if (data.qr) return data.qr;
+                        if (data.data) return data.data;
+                        if (data.qrcode) return data.qrcode;
+                        
+                        // If we have a base64 image anywhere in the response
+                        for (const key in data) {
+                            if (typeof data[key] === 'string' && 
+                                data[key].startsWith('data:image/')) {
+                                return data[key];
+                            }
+                        }
+                    } else {
+                        console.log(`Endpoint ${endpoint} failed with status: ${response.status}`);
+                    }
+                } catch (err) {
+                    console.log(`Error with endpoint ${endpoint}:`, err);
+                }
+            }
+            
+            // If we couldn't get the QR code through the API, try one more approach
+            // Try to get the QR code through the session info
+            try {
+                const sessionResponse = await fetch(`${WAHA_CONFIG.baseUrl}/sessions/${WAHA_CONFIG.session}`, {
+                    headers: WAHA_CONFIG.headers
+                });
+                
+                if (sessionResponse.ok) {
+                    const sessionData = await sessionResponse.json();
+                    if (sessionData.qr) return sessionData.qr;
+                }
+            } catch (err) {
+                console.log("Error getting QR from session info:", err);
+            }
+            
+            return null;
+        } catch (error) {
+            console.error("Error fetching QR code:", error);
+            return null;
         }
+    })();
+    
+    // Race the QR fetch against the cancel button
+    const result = await Promise.race([qrPromise, cancelPromise]);
+    
+    // Remove the loading modal
+    loadingModalDiv.remove();
+    
+    // If cancelled, return false
+    if (result && result.cancelled) {
+        return false;
     }
     
+    // Get the QR code from the result
+    const qrCode = result;
+    
     if (!qrCode) {
-        console.error("Failed to retrieve QR code from WAHA API");
-        return false;
+        console.error("Failed to get QR code from any API endpoint");
+        
+        // Show error modal
+        const errorModalDiv = document.createElement('div');
+        errorModalDiv.innerHTML = `
+            <div id="whatsappErrorModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7);">
+                <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 400px; border-radius: 8px; text-align: center;">
+                    <h3 style="margin-top: 0; color: #d32f2f;">QR Code Error</h3>
+                    <p>Unable to retrieve WhatsApp QR code from the API. Please try the following:</p>
+                    <ol style="text-align: left; margin: 20px 0;">
+                        <li>Check if the WAHA server is running</li>
+                        <li>Restart the WAHA server</li>
+                        <li>Try again after server restart</li>
+                    </ol>
+                    <div>
+                        <button id="closeErrorModal" style="background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px;">OK</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(errorModalDiv);
+        
+        return new Promise((resolve) => {
+            document.getElementById('closeErrorModal').addEventListener('click', () => {
+                errorModalDiv.remove();
+                resolve(false);
+            });
+        });
     }
     
     // Show QR code modal
@@ -718,7 +836,6 @@ async function sendInvoiceNotification(user, invoice) {
             formattedId: invoice.formattedId || invoice.id,
             amount: invoice.amount,
             dueDate: invoice.dueDate,
-            date: invoice.dueDate,
             id: invoice.id
         });
 
@@ -811,8 +928,6 @@ async function formatMessage(user, type, data) {
         templateType = 'paid';
     } else if (type === 'PAYMENT_REMINDER') {
         templateType = 'unpaid';
-    } else if (type === 'DUE_REMINDER') {
-        templateType = 'due_reminder';
     } else if (type === 'BROADCAST_ALERT') {
         templateType = 'broadcast';
     }
@@ -893,22 +1008,6 @@ async function formatMessage(user, type, data) {
         if (data.message) {
             template = template.replace(/{message}/g, data.message);
             template = template.replace(/{alertMessage}/g, data.message);
-        }
-        // Ensure invoiceMonth and invoiceYear placeholders are filled if dueDate is provided
-        if (data.dueDate) {
-            let dateVal;
-            if (data.dueDate.toDate) {
-                dateVal = data.dueDate.toDate();
-            } else if (typeof data.dueDate === 'number') {
-                // Firestore timestamp in seconds
-                dateVal = new Date(data.dueDate * 1000);
-            } else {
-                dateVal = new Date(data.dueDate);
-            }
-            const monthName = dateVal.toLocaleString('default', { month: 'long' });
-            const yearNum = dateVal.getFullYear();
-            template = template.replace(/{invoiceMonth}/g, monthName);
-            template = template.replace(/{invoiceYear}/g, yearNum);
         }
     }
     
@@ -1160,71 +1259,162 @@ async function promptForAuthentication() {
     });
 }
 
-// Show QR code from Swagger UI
-function showSwaggerQRInstructions() {
-    const modalDiv = document.createElement('div');
-    modalDiv.innerHTML = `
-        <div id="swaggerQrModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7);">
-            <div class="modal-content" style="background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 600px; border-radius: 8px;">
-                <h3 style="margin-top: 0;">Get WhatsApp QR Code Directly</h3>
-                <p>Follow these steps to get the QR code directly from the WAHA API:</p>
-                
-                <ol style="text-align: left; margin-bottom: 20px;">
-                    <li>Open <a href="http://localhost:3000/" target="_blank">http://localhost:3000/</a> in a new tab</li>
-                    <li>Click the green "Authorize" button in the top-right</li>
-                    <li>Enter your API key: <code>${WAHA_CONFIG.headers['X-Api-Key']}</code></li>
-                    <li>Click "Authorize" and then "Close"</li>
-                    <li>Scroll down to the <strong>Auth</strong> section</li>
-                    <li>Find <code>GET /{session}/auth/qr</code> and click "Try it out"</li>
-                    <li>Enter <code>default</code> in the session parameter</li>
-                    <li>Click "Execute"</li>
-                    <li>The QR code should appear in the response section</li>
-                    <li>Scan it with WhatsApp on your phone</li>
-                </ol>
-                
-                <p>If you don't see a QR code, try these alternate endpoints:</p>
-                <ul style="text-align: left; margin-bottom: 20px;">
-                    <li><code>GET /auth/{session}/qr</code> (with session = default)</li>
-                    <li><code>GET /sessions/{session}/qr</code> (with session = default)</li>
-                </ul>
-                
-                <p>If you still can't get a QR code, try restarting the WAHA server with:</p>
-                <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">start-waha.bat restart</pre>
-                
-                <div style="text-align: center; margin-top: 20px;">
-                    <button id="closeSwaggerModal" style="background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+// Show QR code directly (same as authenticateWithQR but without session restart)
+async function showSwaggerQRInstructions() {
+    console.log("Getting QR code directly from API...");
+    
+    // Create a modal with loading indicator while we fetch the QR code
+    const loadingModalDiv = document.createElement('div');
+    loadingModalDiv.innerHTML = `
+        <div id="qrLoadingModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7);">
+            <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 350px; border-radius: 8px; text-align: center;">
+                <h3 style="margin-top: 0;">WhatsApp QR Code</h3>
+                <p>Fetching QR code directly from WAHA API...</p>
+                <div style="margin: 20px 0;">
+                    <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; margin: 0 auto; animation: spin 2s linear infinite;"></div>
                 </div>
+                <style>
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                </style>
+                <button id="cancelQrLoading" style="background-color: #f44336; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px;">Cancel</button>
             </div>
         </div>
     `;
+    document.body.appendChild(loadingModalDiv);
     
-    document.body.appendChild(modalDiv);
-    
-    // Add event listener to close button
-    document.getElementById('closeSwaggerModal').addEventListener('click', () => {
-        modalDiv.remove();
+    // Add cancel button handler
+    const cancelPromise = new Promise(resolve => {
+        document.getElementById('cancelQrLoading').addEventListener('click', () => {
+            loadingModalDiv.remove();
+            resolve({ cancelled: true });
+        });
     });
     
-    return modalDiv;
-}
-
-// New function to send due reminder
-async function sendDueReminder(user, invoice) {
-    try {
-        const message = await formatMessage(user, 'DUE_REMINDER', {
-            ...invoice,
-            formattedId: invoice.formattedId || invoice.id,
-            invoiceAmount: invoice.amount,
-            amount: invoice.amount,
-            dueDate: invoice.dueDate,
-            packageName: invoice.packageName || invoice.packageId || 'Internet Service',
-            packageSpeed: invoice.packageSpeed || '',
-            id: invoice.id
+    // Try all possible QR endpoints directly
+    const qrPromise = (async () => {
+        try {
+            // Try multiple endpoints for QR code - different WAHA versions use different paths
+            const endpoints = [
+                `${WAHA_CONFIG.baseUrl}/sessions/${WAHA_CONFIG.session}/qr`,
+                `${WAHA_CONFIG.baseUrl}/auth/${WAHA_CONFIG.session}/qr`,
+                `${WAHA_CONFIG.baseUrl}/${WAHA_CONFIG.session}/auth/qr`
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    console.log(`Trying QR endpoint: ${endpoint}`);
+                    const response = await fetch(endpoint, {
+                        headers: WAHA_CONFIG.headers
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log("QR response received");
+                        
+                        // Different WAHA versions return QR in different formats
+                        if (data.qr) return data.qr;
+                        if (data.data) return data.data;
+                        if (data.qrcode) return data.qrcode;
+                        
+                        // If we have a base64 image anywhere in the response
+                        for (const key in data) {
+                            if (typeof data[key] === 'string' && 
+                                data[key].startsWith('data:image/')) {
+                                return data[key];
+                            }
+                        }
+                    } else {
+                        console.log(`Endpoint ${endpoint} failed with status: ${response.status}`);
+                    }
+                } catch (err) {
+                    console.log(`Error with endpoint ${endpoint}:`, err);
+                }
+            }
+            
+            // If we couldn't get the QR code through the API, try one more approach
+            // Try to get the QR code through the session info
+            try {
+                const sessionResponse = await fetch(`${WAHA_CONFIG.baseUrl}/sessions/${WAHA_CONFIG.session}`, {
+                    headers: WAHA_CONFIG.headers
+                });
+                
+                if (sessionResponse.ok) {
+                    const sessionData = await sessionResponse.json();
+                    if (sessionData.qr) return sessionData.qr;
+                }
+            } catch (err) {
+                console.log("Error getting QR from session info:", err);
+            }
+            
+            return null;
+        } catch (error) {
+            console.error("Error fetching QR code:", error);
+            return null;
+        }
+    })();
+    
+    // Race the QR fetch against the cancel button
+    const result = await Promise.race([qrPromise, cancelPromise]);
+    
+    // Remove the loading modal
+    loadingModalDiv.remove();
+    
+    // If cancelled, return false
+    if (result && result.cancelled) {
+        return false;
+    }
+    
+    // Get the QR code from the result
+    const qrCode = result;
+    
+    if (!qrCode) {
+        console.error("Failed to get QR code from any API endpoint");
+        
+        // Show error modal
+        const errorModalDiv = document.createElement('div');
+        errorModalDiv.innerHTML = `
+            <div id="whatsappErrorModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7);">
+                <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 400px; border-radius: 8px; text-align: center;">
+                    <h3 style="margin-top: 0; color: #d32f2f;">QR Code Error</h3>
+                    <p>Unable to retrieve WhatsApp QR code from the API. Please try the following:</p>
+                    <ol style="text-align: left; margin: 20px 0;">
+                        <li>Check if the WAHA server is running</li>
+                        <li>Restart the WAHA server</li>
+                        <li>Try again after server restart</li>
+                    </ol>
+                    <div>
+                        <button id="closeErrorModal" style="background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px;">OK</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(errorModalDiv);
+        
+        return new Promise((resolve) => {
+            document.getElementById('closeErrorModal').addEventListener('click', () => {
+                errorModalDiv.remove();
+                resolve(false);
+            });
         });
-        return await sendWithRetry(() => sendMessage(user.phone, message));
-    } catch (error) {
-        console.error('Error sending due reminder:', error);
-        return { success: false, error: error.message };
+    }
+    
+    // Show QR code modal
+    const modalDiv = showQRModal(qrCode);
+    console.log("QR code displayed, waiting for scan...");
+    
+    // Wait for authentication
+    const authenticated = await serverStatus.waitForAuthentication();
+    modalDiv.remove();
+    
+    if (authenticated) {
+        console.log("WhatsApp authentication successful!");
+        return true;
+    } else {
+        console.error("WhatsApp authentication failed or timed out");
+        return false;
     }
 }
 
@@ -1245,6 +1435,5 @@ export {
     formatAmount,
     serverStatus,
     authenticateWithQR,
-    showSwaggerQRInstructions,
-    sendDueReminder
+    showSwaggerQRInstructions
 }; 

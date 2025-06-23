@@ -322,16 +322,17 @@
   <script type="module">
     // Import Firebase modules
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
-    import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
+    import { getFirestore, collection, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
 
     // Your web app's Firebase configuration
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyAExSaJx0_YU_ZkXcGqkAiDtgljo8cPJRQ",
+      authDomain: "ispnet-6ab93.firebaseapp.com",
+      projectId: "ispnet-6ab93",
+      storageBucket: "ispnet-6ab93.firebasestorage.app",
+      messagingSenderId: "332292008834",
+      appId: "1:332292008834:web:60adaaee92ff9899363d9b",
+      measurementId: "G-L3084YL4ZL"
     };
 
     // Initialize Firebase
@@ -345,7 +346,14 @@
     if (invoiceId) {
       fetchInvoiceDetails(invoiceId);
     } else {
-      document.getElementById('invoiceDetails').innerHTML = '<p>No invoice ID provided.</p>';
+      showError('No invoice ID provided.');
+    }
+    
+    function showError(message) {
+      const errorContainer = document.getElementById('errorContainer');
+      errorContainer.textContent = message;
+      errorContainer.style.display = 'block';
+      document.getElementById('loadingIndicator').style.display = 'none';
     }
 
     async function fetchInvoiceDetails(id) {
@@ -356,7 +364,7 @@
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-          document.getElementById('invoiceDetails').innerHTML = `<p>Invoice with ID ${id} not found.</p>`;
+          showError(`Invoice with ID ${id} not found.`);
           return;
         }
         
@@ -364,8 +372,16 @@
         const invoiceDoc = querySnapshot.docs[0];
         const invoice = invoiceDoc.data();
 
+        // Hide loading indicator
+        document.getElementById('loadingIndicator').style.display = 'none';
+        
+        // Show invoice container
+        document.getElementById('invoiceContainer').style.display = 'block';
+        
         // Populate invoice details
         document.getElementById('invoiceNumber').textContent = invoice.formattedId || id;
+        
+        // Handle invoice date
         const invoiceDateTs = invoice.createdAt ? (invoice.createdAt.seconds || invoice.createdAt._seconds || invoice.createdAt) :
                                   (invoice.dueDate ? (invoice.dueDate.seconds || invoice.dueDate._seconds || invoice.dueDate) : null);
         let invoiceDate;
@@ -387,38 +403,90 @@
           if (!isNaN(derivedDate.getTime())) invoiceDate = derivedDate;
         }
         document.getElementById('invoiceDate').textContent = invoiceDate ? invoiceDate.toLocaleDateString() : 'N/A';
-        document.getElementById('dueDate').textContent = invoice.dueDate ? new Date((invoice.dueDate.seconds || invoice.dueDate._seconds) * 1000).toLocaleDateString() : 'N/A';
         
-        // You'll need to fetch and display customer details separately if they aren't on the invoice document
-        document.getElementById('bill-to-name').textContent = invoice.customerName || 'Customer Name'; // Example
-        document.getElementById('bill-to-contact').textContent = invoice.customerContact || 'Contact Info'; // Example
-
-        // Populate invoice items
-        const itemsTable = document.getElementById('invoice-items');
-        // Clear existing items
-        while (itemsTable.rows.length > 1) {
-          itemsTable.deleteRow(1);
+        // Handle due date
+        let dueDate;
+        if (invoice.dueDate) {
+          if (typeof invoice.dueDate.toDate === 'function') {
+            dueDate = invoice.dueDate.toDate();
+          } else if (invoice.dueDate.seconds || invoice.dueDate._seconds) {
+            dueDate = new Date((invoice.dueDate.seconds || invoice.dueDate._seconds) * 1000);
+          } else {
+            dueDate = new Date(invoice.dueDate);
+          }
+          document.getElementById('dueDate').textContent = dueDate.toLocaleDateString();
+        } else {
+          document.getElementById('dueDate').textContent = 'N/A';
         }
         
-        // Add new item (customize as needed)
-        const row = itemsTable.insertRow();
-        row.innerHTML = `
-          <td>${invoice.packageName || 'Service'}</td>
-          <td>${invoice.period || 'N/A'}</td>
-          <td>PKR ${parseFloat(invoice.amount).toFixed(2)}</td>
-        `;
+        // Fetch and populate customer details
+        const userRef = doc(db, 'users', invoice.userId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          document.getElementById('customerName').textContent = userData.name || '';
+          document.getElementById('customerPhone').textContent = userData.phone || '';
+          document.getElementById('customerEmail').textContent = userData.email || '';
+          document.getElementById('customerAddress').textContent = userData.address || '';
+        } else {
+          document.getElementById('customerName').textContent = 'Customer';
+        }
 
-        // Populate total
-        document.getElementById('total-amount').textContent = `PKR ${parseFloat(invoice.amount).toFixed(2)}`;
+        // Fetch and populate package details
+        const pkgRef = doc(db, 'packages', invoice.packageId);
+        const pkgSnap = await getDoc(pkgRef);
+        if (pkgSnap.exists()) {
+          const pkgData = pkgSnap.data();
+          document.getElementById('packageName').textContent = pkgData.name || '';
+        } else {
+          document.getElementById('packageName').textContent = 'Internet Service';
+        }
+        
+        // Billing period
+        let billingPeriod = 'N/A';
+        if (invoice.billingPeriod) {
+          billingPeriod = invoice.billingPeriod;
+        } else if (invoice.period) {
+          billingPeriod = invoice.period;
+        } else if (invoiceDate && dueDate) {
+          billingPeriod = `${invoiceDate.toLocaleDateString()} - ${dueDate.toLocaleDateString()}`;
+        } else if (invoice.formattedId && invoice.formattedId.length >= 6) {
+          const yr = invoice.formattedId.substring(0,4);
+          const mo = invoice.formattedId.substring(4,6);
+          billingPeriod = `${mo}/${yr}`;
+        }
+        document.getElementById('billingPeriod').textContent = billingPeriod;
+        
+        // Amount
+        const amount = parseFloat(invoice.amount || 0).toFixed(2);
+        document.getElementById('packageAmount').textContent = `₨${amount}`;
+        document.getElementById('totalAmount').textContent = `₨${amount}`;
 
-        // Update payment status
-        const statusDiv = document.getElementById('payment-status');
-        statusDiv.textContent = invoice.status || 'Due';
-        statusDiv.className = `status-${(invoice.status || 'due').toLowerCase()}`;
+        // Status
+        const status = invoice.status || 'Due';
+        document.getElementById('invoiceStatus').textContent = status;
+        document.getElementById('invoiceStatus').className = `status-${status.toLowerCase()}`;
+        
+        // Show/hide paid stamp
+        if (status.toLowerCase() === 'paid') {
+          document.getElementById('paidStamp').style.display = 'block';
+        } else {
+          document.getElementById('paidStamp').style.display = 'none';
+        }
+        
+        // Set up print button
+        document.getElementById('printBtn').addEventListener('click', () => {
+          window.print();
+        });
+        
+        // Set up download button (simplified, actual PDF generation would require additional libraries)
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+          alert('PDF download functionality coming soon!');
+        });
 
       } catch (error) {
         console.error("Error fetching invoice details: ", error);
-        document.getElementById('invoiceDetails').innerHTML = '<p>Error loading invoice details.</p>';
+        showError('Error loading invoice details.');
       }
     }
   </script>

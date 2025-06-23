@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Message Templates - WeCloud</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f7fa;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 30px;
+      background-color: #fff;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+    }
+    h1 {
+      color: #1a73e8;
+      margin-top: 0;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 15px;
+    }
+    h2 {
+      color: #2c3e50;
+      margin-top: 30px;
+      border-left: 4px solid #1a73e8;
+      padding-left: 10px;
+    }
+    .template {
+      background-color: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+    .copy-btn {
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+      font-weight: 500;
+    }
+    .copy-btn:hover {
+      background-color: #1557b0;
+    }
+    .status-paid {
+      color: #2e7d32;
+    }
+    .status-due {
+      color: #f57c00;
+    }
+    .status-unpaid {
+      color: #c62828;
+    }
+    .notes {
+      background-color: #fff8e1;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>WhatsApp Message Templates</h1>
+    <p>Use these professional templates when sending invoice links to your customers. Choose the appropriate template based on the invoice status.</p>
+    
+    <div class="notes">
+      <p><strong>Note:</strong> These templates use placeholders that should be replaced with actual information:</p>
+      <ul>
+        <li><code>{customerName}</code> - The customer's name</li>
+        <li><code>{invoiceId}</code> - The invoice number</li>
+        <li><code>{amount}</code> - The invoice amount</li>
+        <li><code>{dueDate}</code> - The due date (for unpaid invoices)</li>
+        <li><code>{invoiceLink}</code> - The link to view the invoice</li>
+        <li><code>{packageName}</code> - The name of the service package</li>
+        <li><code>{billingPeriod}</code> - The billing period</li>
+      </ul>
+    </div>
+
+    <h2 class="status-paid">Paid Invoice Template</h2>
+    <div class="template" id="paid-template">Dear {customerName},
+
+Thank you for your payment! 🙏
+
+Your receipt for WeCloud Internet Services is now available.
+
+*Receipt Details:*
+📋 Invoice #: {invoiceId}
+💰 Amount Paid: PKR {amount}
+📦 Package: {packageName}
+📅 Period: {billingPeriod}
+✅ Status: *PAID*
+
+View your receipt online: {invoiceLink}
+
+We appreciate your business and prompt payment. If you have any questions about your service or need technical assistance, please don't hesitate to contact our support team.
+
+Thank you for choosing WeCloud Internet Services!
+
+Best regards,
+WeCloud Support Team
++92-300-1234567</div>
+    <button class="copy-btn" onclick="copyTemplate('paid-template')">Copy Template</button>
+
+    <h2 class="status-due">Due Invoice Template</h2>
+    <div class="template" id="due-template">Dear {customerName},
+
+Your invoice for WeCloud Internet Services is ready.
+
+*Invoice Details:*
+📋 Invoice #: {invoiceId}
+💰 Amount: PKR {amount}
+📦 Package: {packageName}
+📅 Period: {billingPeriod}
+⏰ Due Date: {dueDate}
+🔶 Status: *DUE*
+
+View your invoice online: {invoiceLink}
+
+Please make your payment before the due date to ensure uninterrupted service. If you have already made the payment, please disregard this message.
+
+Thank you for choosing WeCloud Internet Services!
+
+Best regards,
+WeCloud Support Team
++92-300-1234567</div>
+    <button class="copy-btn" onclick="copyTemplate('due-template')">Copy Template</button>
+
+    <h2 class="status-unpaid">Overdue Invoice Template</h2>
+    <div class="template" id="unpaid-template">Dear {customerName},
+
+REMINDER: Your invoice for WeCloud Internet Services is overdue.
+
+*Invoice Details:*
+📋 Invoice #: {invoiceId}
+💰 Amount: PKR {amount}
+📦 Package: {packageName}
+📅 Period: {billingPeriod}
+⚠️ Due Date: {dueDate} (OVERDUE)
+🔴 Status: *UNPAID*
+
+View your invoice online: {invoiceLink}
+
+Your service may be suspended if payment is not received soon. Please settle your outstanding balance at your earliest convenience.
+
+If you're experiencing any difficulties with payment or have questions about your invoice, please contact us immediately.
+
+Thank you for your attention to this matter.
+
+Best regards,
+WeCloud Support Team
++92-300-1234567</div>
+    <button class="copy-btn" onclick="copyTemplate('unpaid-template')">Copy Template</button>
+  </div>
+
+  <script>
+    function copyTemplate(id) {
+      const template = document.getElementById(id);
+      const text = template.innerText;
+      
+      navigator.clipboard.writeText(text).then(() => {
+        const button = document.querySelector(`#${id} + .copy-btn`);
+        const originalText = button.innerText;
+        button.innerText = 'Copied!';
+        setTimeout(() => {
+          button.innerText = originalText;
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html> 

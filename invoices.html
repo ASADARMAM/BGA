@@ -147,6 +147,11 @@
               <i class="fas fa-bell"></i> Send Overdue Reminders
             </button>
           </div>
+          <div class="form-col">
+            <button id="sendDueRemindersBtn" class="btn btn-outline" style="width: 100%;">
+              <i class="fas fa-bell"></i> Send Due Reminders
+            </button>
+          </div>
         </div>
         
         <div class="form-row mt-2">
@@ -294,10 +299,15 @@
         updateInvoice,
         deleteInvoice,
         generateInvoicesForAllUsers as generateAll,
-        sendPaymentReminders
+        sendPaymentReminders,
+        sendDueReminders,
+        markOverdueInvoices,
+        fixIncorrectOverdueInvoices,
+        fixSpecificInvoice
     } from './js/invoices.js';
     import {
         sendInvoiceNotification,
+        sendPaymentReminder,
         sendInvoicePdf,
         formatMessage
     } from './js/whatsapp.js';
@@ -306,6 +316,7 @@
         generateFormattedInvoiceId,
         formatAmount
     } from './js/invoiceGenerator.js';
+    import { generateInvoiceLink } from './js/invoiceViewer.js';
 
     // DOM Elements
     const invoiceForm = document.getElementById('createInvoiceForm');
@@ -450,6 +461,7 @@
                     <button class="btn btn-sm btn-danger delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
                     ${invoice.status !== 'Paid' ? `<button class="btn btn-sm btn-success mark-paid-btn" title="Mark as Paid"><i class="fas fa-check"></i></button>` : ''}
                     <button class="btn btn-sm btn-info print-btn" title="Print"><i class="fas fa-print"></i></button>
+                    ${(invoice.status === 'Due' || invoice.status === 'Overdue') ? `<button class="btn btn-sm btn-warning send-reminder-btn" title="Send Reminder"><i class="fas fa-bell"></i></button>` : ''}
                 </td>
             `;
 
@@ -462,6 +474,22 @@
                 row.querySelector('.mark-paid-btn').addEventListener('click', () => markInvoiceAsPaid(invoice));
             }
             row.querySelector('.print-btn').addEventListener('click', () => printInvoice(invoice));
+            // Individual reminder button
+            if (invoice.status === 'Due' || invoice.status === 'Overdue') {
+                row.querySelector('.send-reminder-btn').addEventListener('click', async () => {
+                    showAlert('Processing...', 'Sending reminder...');
+                    try {
+                        const result = await sendPaymentReminder(user, invoice);
+                        if (result.success) {
+                            showAlert('Success', 'Reminder sent successfully.');
+                        } else {
+                            showAlert('Error', result.error || 'Failed to send reminder.');
+                        }
+                    } catch (e) {
+                        showAlert('Error', 'Failed to send reminder: ' + e.message);
+                    }
+                });
+            }
         });
     }
 
@@ -560,10 +588,28 @@
                 console.log('Generating paid invoice image...');
                 const imageBlob = await generateInvoiceImage({ ...invoice, status: 'Paid' });
                 console.log('Image generated, sending notification...');
+                
+                // Get package data
+                let packageData = null;
+                if (invoice.packageId) {
+                    try {
+                        const packageDoc = await getDoc(doc(db, "packages", invoice.packageId));
+                        if (packageDoc.exists()) {
+                            packageData = packageDoc.data();
+                        }
+                    } catch (err) {
+                        console.warn(`Could not fetch package data: ${err.message}`);
+                    }
+                }
+                
                 const message = await formatMessage(user, 'PAYMENT_CONFIRMATION', {
                     ...invoice,
-                    paymentDate: new Date()
+                    paymentDate: new Date(),
+                    packageName: packageData?.name || 'Internet Service',
+                    packageSpeed: packageData?.speed || '',
+                    date: invoice.date || new Date()
                 });
+                
                 await sendInvoicePdf(user, invoice, imageBlob, message);
                 showAlert('Success', 'Invoice marked as paid and notification sent.');
             }
@@ -573,19 +619,13 @@
         }
     }
 
-    async function printInvoice(invoice) {
-        try {
-            const imageBlob = await generateInvoiceImage(invoice);
-            const url = URL.createObjectURL(imageBlob);
-            const printWin = window.open(url, '_blank');
-            printWin.onload = () => {
-                printWin.print();
-                URL.revokeObjectURL(url);
-            };
-        } catch (error) {
-            console.error('Error printing invoice:', error);
-            showAlert('Error', 'Could not generate invoice for printing.');
-        }
+    function printInvoice(invoice) {
+        // Open the invoice viewer page for printing
+        const url = generateInvoiceLink(invoice.formattedId || invoice.id);
+        const printWin = window.open(url, '_blank');
+        printWin.onload = () => {
+            printWin.print();
+        };
     }
 
     // Show alert modal
@@ -605,9 +645,11 @@
     }
     
     // Initial page load
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
         loadUsers();
         loadPackages();
+        
+        // Setup invoice listener first to show data immediately
         setupInvoiceListener();
         setDefaultDueDate();
         
@@ -639,12 +681,33 @@
     
     sendAllRemindersBtn.addEventListener('click', async () => {
         if (!confirm('This will send payment reminders for ALL overdue invoices. Are you sure?')) return;
-        showAlert('Processing...', 'Sending reminders. This may take a moment.');
+        showAlert('Processing...', 'Sending overdue reminders. This may take a moment.');
         try {
-            await sendPaymentReminders();
-            showAlert('Success', 'Reminder process completed.');
+            const result = await sendPaymentReminders();
+            if (result.success) {
+                showAlert('Success', `Sent ${result.remindersSent} out of ${result.total} overdue reminders.`);
+            } else {
+                showAlert('Error', result.message || 'An error occurred while sending overdue reminders.');
+            }
         } catch(e) {
-            showAlert('Error', 'An error occurred while sending reminders.');
+            showAlert('Error', 'An error occurred while sending overdue reminders.');
+        }
+    });
+
+    // Send due reminders for all invoices with status 'Due'
+    const sendDueRemindersBtn = document.getElementById('sendDueRemindersBtn');
+    sendDueRemindersBtn.addEventListener('click', async () => {
+        if (!confirm('This will send payment reminders for ALL due invoices. Are you sure?')) return;
+        showAlert('Processing...', 'Sending due reminders. This may take a moment.');
+        try {
+            const result = await sendDueReminders();
+            if (result.success) {
+                showAlert('Success', `Sent ${result.remindersSent} out of ${result.total} due reminders.`);
+            } else {
+                showAlert('Error', result.message || 'An error occurred while sending due reminders.');
+            }
+        } catch(e) {
+            showAlert('Error', 'An error occurred while sending due reminders.');
         }
     });
 

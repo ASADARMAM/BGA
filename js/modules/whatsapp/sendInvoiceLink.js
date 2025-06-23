@@ -1,13 +1,13 @@
 // Import required modules
-import { sendWhatsAppMessage } from '../../whatsapp.js';
+import { sendMessage } from '../../whatsapp.js';
 import { getInvoiceById } from '../invoices/getInvoice.js';
 import { getUserById } from '../../users.js';
 import { db, doc, getDoc, setDoc, collection, query, where, getDocs } from '../../firebaseConfig.js';
 
 // Function to generate invoice link
 function generateInvoiceLink(invoiceId) {
-  // Use relative path instead of GitHub Pages URL
-  return `view-invoice.html?id=${invoiceId}`;
+  // Use GitHub Pages URL for external sharing
+  return `https://asadarmam.github.io/wecloud-invoices/view.html?id=${invoiceId}`;
 }
 
 // Get templates from Firestore
@@ -57,7 +57,7 @@ Thank you! We have successfully received your payment.
 
 *🔗 VIEW RECEIPT*
 ━━━━━━━━━━━━
-Your receipt is available here:
+A receipt has been generated for your payment:
 {invoiceLink}
 
 We value your business and look forward to providing you with excellent internet service.
@@ -186,7 +186,7 @@ export async function sendInvoiceLink(invoiceId) {
     const message = await generateWhatsAppMessage(invoice, user, packageData, invoiceLink);
     
     // Send the message via WhatsApp only once
-    const result = await sendWhatsAppMessage(user.phone, message);
+    const result = await sendMessage(user.phone, message);
     
     // Log that the notification has been sent
     if (result.success) {
@@ -254,14 +254,20 @@ export async function sendPaymentReminder(invoiceId) {
     // Generate the direct link to the invoice
     const invoiceLink = generateInvoiceLink(invoice.id);
     
-    // Force the status to unpaid for reminders
-    const reminderInvoice = {...invoice, status: 'unpaid'};
+    // Make sure we're using the correct status for reminders
+    // If it's already marked as Overdue, keep that status, otherwise set it to unpaid
+    const reminderInvoice = {
+      ...invoice, 
+      status: invoice.status === 'Overdue' ? 'Overdue' : 'unpaid'
+    };
+    
+    console.log(`Sending reminder for invoice ${invoice.id} with status: ${reminderInvoice.status}`);
     
     // Generate the unpaid/reminder message
     const message = await generateWhatsAppMessage(reminderInvoice, user, packageData, invoiceLink);
     
     // Send the message via WhatsApp
-    const result = await sendWhatsAppMessage(user.phone, message);
+    const result = await sendMessage(user.phone, message);
     
     return {
       success: true,
@@ -324,7 +330,7 @@ export async function sendPaymentConfirmation(invoiceId) {
     const message = await generateWhatsAppMessage(invoice, user, packageData, invoiceLink);
     
     // Send the message via WhatsApp
-    const result = await sendWhatsAppMessage(user.phone, message);
+    const result = await sendMessage(user.phone, message);
     
     return {
       success: true,
@@ -357,10 +363,18 @@ async function generateWhatsAppMessage(invoice, user, packageData, invoiceLink) 
     templateType = 'paid';
   } else if (status === 'unpaid' || status === 'overdue') {
     templateType = 'unpaid';
+    console.log(`Using unpaid template for ${status} invoice ${invoice.id}`);
+  } else if (invoice.status === 'Overdue' || invoice.status === 'OVERDUE') {
+    // Handle case sensitivity issues with status
+    templateType = 'unpaid';
+    console.log(`Using unpaid template for case-sensitive ${invoice.status} invoice ${invoice.id}`);
   }
   
   // Get the template from Firestore
   let template = await getMessageTemplate(templateType);
+  
+  // Log for debugging
+  console.log(`Template type: ${templateType}, Template length: ${template ? template.length : 0}`);
   
   // Format billing period
   let periodText = 'N/A';
